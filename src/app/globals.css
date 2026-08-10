@@ -1,0 +1,207 @@
+@import "tailwindcss";
+/* Pretendard는 public/fonts에 self-host 하고 @font-face만 여기서 불러온다. */
+@import "./pretendard.css";
+
+/*
+  Life Guardian 디자인 시스템
+  "의료기기의 신뢰감 × 명상 앱의 고요함"
+
+  규칙
+  - 거의 무채색. 색은 오직 생체신호에만 허용한다.
+  - 그라데이션은 신호의 잔광(glow)에만. 배경 그라데이션 금지.
+  - 반투명 블러 카드(글래스모피즘) 금지. 면은 불투명한 잉크 톤으로 구분한다.
+  - 테두리는 1px 미만의 헤어라인. 강한 보더 금지.
+*/
+
+@theme {
+  /* 잉크 — 배경 계층 */
+  --color-ink-950: #08090b;
+  --color-ink-900: #0b0d10;
+  --color-ink-850: #101216;
+  --color-ink-800: #15181d;
+  --color-ink-750: #1b1f26;
+  --color-ink-700: #232830;
+  --color-ink-600: #333944;
+
+  /* 텍스트 — 웜 화이트 */
+  --color-paper: #ece9e3;
+  --color-paper-dim: #a9a59d;
+  --color-paper-mute: #6f6c66;
+
+  /* 생체신호 — 이 프로젝트에서 유일하게 허용된 색 */
+  --color-hr: #f2704e; /* 심박 — 코랄/앰버 */
+  --color-hr-deep: #a8422a;
+  --color-gsr: #3fafa6; /* 피부전도 — 틸 */
+  --color-gsr-deep: #1f6b65;
+  --color-hrv: #9fb489; /* 심박변이 — 세이지 */
+  --color-hrv-deep: #5f7049;
+
+  /* 삼성생명 블루 — 로고와 결과 씬에만 절제해서 */
+  --color-brand: #4a7ce0;
+  --color-brand-deep: #17337a;
+
+  --color-warn: #d9a441;
+
+  --font-sans: "Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont,
+    system-ui, "Segoe UI", Roboto, sans-serif;
+
+  /* 모션 — 전부 호흡·심박 리듬에서 파생 */
+  --ease-calm: cubic-bezier(0.22, 0.61, 0.36, 1);
+  --ease-inout: cubic-bezier(0.65, 0, 0.35, 1);
+}
+
+:root {
+  --breath-cycle: 4s;
+  --hairline: 1px solid rgba(236, 233, 227, 0.08);
+  --hairline-strong: 1px solid rgba(236, 233, 227, 0.16);
+  color-scheme: dark;
+}
+
+* {
+  -webkit-tap-highlight-color: transparent;
+}
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  background: var(--color-ink-950);
+  color: var(--color-paper);
+  font-family: var(--font-sans);
+  font-feature-settings: "ss01", "tnum" 0;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  letter-spacing: -0.011em;
+  overscroll-behavior: none;
+}
+
+::selection {
+  background: rgba(242, 112, 78, 0.28);
+}
+
+/* 수치는 항상 등폭 숫자 — 값이 바뀔 때 자리가 흔들리지 않게 */
+.tnum {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
+}
+
+/* 씬 타이틀 — 크고 얇게 */
+.scene-title {
+  font-weight: 300;
+  letter-spacing: -0.035em;
+  line-height: 1.14;
+}
+
+.hairline {
+  border: var(--hairline);
+}
+.hairline-t {
+  border-top: var(--hairline);
+}
+.hairline-b {
+  border-bottom: var(--hairline);
+}
+
+/* 포커스 링 — 기본 파랑 대신 조용한 링 */
+:where(button, a, input, textarea, [tabindex]):focus-visible {
+  outline: 2px solid rgba(236, 233, 227, 0.55);
+  outline-offset: 3px;
+  border-radius: 6px;
+}
+
+/* 호흡 리듬 유틸 */
+@keyframes breathe {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 0.72;
+  }
+  50% {
+    transform: scale(1.06);
+    opacity: 1;
+  }
+}
+
+@keyframes pulse-ring {
+  0% {
+    transform: scale(0.92);
+    opacity: 0.5;
+  }
+  70% {
+    transform: scale(1.5);
+    opacity: 0;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+@keyframes drift-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.animate-drift-in {
+  animation: drift-in 0.7s var(--ease-calm) both;
+}
+
+@keyframes caret-blink {
+  0%,
+  45% {
+    opacity: 1;
+  }
+  55%,
+  100% {
+    opacity: 0;
+  }
+}
+
+/* 스크롤바 — 존재감을 지운다 */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(236, 233, 227, 0.12);
+  border-radius: 999px;
+  border: 3px solid transparent;
+  background-clip: content-box;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* 모션 민감 사용자 배려 */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* ── 영수증(인쇄) 전용 — 여기만 라이트 테마 ───────────────────────── */
+@media print {
+  @page {
+    size: 80mm auto;
+    margin: 0;
+  }
+  html,
+  body {
+    background: #fff !important;
+    color: #000 !important;
+  }
+  .no-print {
+    display: none !important;
+  }
+}
