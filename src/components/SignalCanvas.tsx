@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from 'react';
 import { sensorHub } from '@/lib/sensors/hub';
+import { rgbGsr, rgbHr } from '@/lib/theme';
 import { ScrollBuffer, ecgAt } from '@/lib/waveform';
 
 type Variant = 'hero' | 'ambient' | 'strip';
@@ -17,12 +18,6 @@ interface Props {
   intensity?: number;
 }
 
-/*
-  밝은 배경용 색. 어두운 배경에서 쓰던 밝은 코랄/틸은 흰 종이 위에서
-  형광펜처럼 튀어서 계측값이 아니라 장식으로 읽힌다.
-*/
-const HR_COLOR = '217, 66, 21';
-const GSR_COLOR = '13, 111, 104';
 
 /**
  * 실시간 파형 렌더러.
@@ -47,6 +42,10 @@ export default function SignalCanvas({
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
+
+    // 테마 토큰에서 읽는다 — 팔레트를 바꿔도 파형만 옛 색으로 남지 않게
+    const HR_COLOR = rgbHr();
+    const GSR_COLOR = rgbGsr();
 
     const pxPerSec = speed ?? (variant === 'strip' ? 64 : 96);
     const hrBuf = new ScrollBuffer(1);

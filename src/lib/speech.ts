@@ -134,12 +134,35 @@ export interface RecognizerHandlers {
   onFinal?: (text: string) => void;
   /** 첫 발화가 감지된 순간 — 응답 지연시간의 종료점 */
   onSpeechStart?: () => void;
+  /** 인식기가 실제로 마이크를 열었다 — "듣고 있다"의 유일한 증거 */
+  onAudioStart?: () => void;
+  /** 더 이상 재시도하지 않고 끝났다. 이유 코드를 그대로 넘긴다. */
   onError?: (reason: string) => void;
 }
 
 /**
+ * 다시 시도해도 소용없는 오류.
+ *
+ * - network: 크롬의 음성 인식은 오디오를 구글 서버로 보내 처리한다.
+ *   그 경로가 막히면 몇 번을 다시 걸어도 같은 결과다.
+ * - not-allowed / service-not-allowed: 권한·정책 차단
+ * - audio-capture: 마이크 장치를 못 연다 (다른 스트림이 잡고 있는 경우 포함)
+ */
+const FATAL = new Set(['network', 'not-allowed', 'service-not-allowed', 'audio-capture', 'language-not-supported']);
+
+/** 브라우저가 임의로 끊었을 때 다시 여는 최대 횟수 */
+const MAX_RESTARTS = 6;
+/** 재시작 간격(ms). 곧바로 start()를 부르면 InvalidStateError가 난다. */
+const RESTART_DELAY_MS = 250;
+
+/**
  * 연속 인식기. 한 문항의 응답 구간 동안만 살아 있다.
  * 지원하지 않는 브라우저에서는 null을 돌려주고, 호출부는 타이핑 입력으로 넘어간다.
+ *
+ * 재시작 정책이 이 함수의 핵심이다. 크롬의 연속 인식은 말이 끊기면 스스로 종료하는데,
+ * 예전 구현은 onend마다 무조건 다시 걸었다. 그래서 network 같은 치명적 오류에서는
+ * 실패 → 재시작 → 실패가 초당 몇 번씩 돌며 오류 메시지만 계속 덮어썼다.
+ * 이제 치명적 오류에서는 재시작하지 않고 한 번만 알린다.
  */
 export function startRecognition(h: RecognizerHandlers): (() => void) | null {
   const Ctor = recognitionCtor();
@@ -159,11 +182,12 @@ export function startRecognition(h: RecognizerHandlers): (() => void) | null {
 
   let finalText = '';
   let stopped = false;
+  let restarts = 0;
+  let fatal: string | null = null;
+  let timer: ReturnType<typeof setTimeout> | null = null;
 
   rec.onspeechstart = () => h.onSpeechStart?.();
-  rec.onaudiostart = () => {
-    /* 마이크가 열렸다. 발화 시작은 onspeechstart에서만 잡는다. */
-  };
+  rec.onaudiostart = () => h.onAudioStart?.();
   rec.onresult = (e) => {
     let interim = '';
     for (let i = e.resultIndex; i < e.results.length; i++) {
@@ -172,21 +196,32 @@ export function startRecognition(h: RecognizerHandlers): (() => void) | null {
       if (r.isFinal) finalText += t;
       else interim += t;
     }
+    // 한 글자라도 돌아왔다면 이 세션은 살아 있다. 재시작 예산을 되돌려 준다.
+    if (finalText || interim) restarts = 0;
     h.onPartial?.((finalText + interim).trim());
   };
   rec.onerror = (e) => {
-    h.onError?.(e?.error ?? 'unknown');
+    const reason = e?.error ?? 'unknown';
+    // no-speech는 오류가 아니라 '아직 말을 안 했다'는 뜻이다. 조용히 다시 연다.
+    if (reason === 'no-speech' || reason === 'aborted') return;
+    if (FATAL.has(reason)) {
+      fatal = reason;
+      h.onError?.(reason);
+    }
   };
   rec.onend = () => {
-    if (!stopped) {
-      // 브라우저가 임의로 끊는 경우가 있다. 응답 구간 안이면 다시 연다.
-      try {
-        rec.start();
-        return;
-      } catch {
-        /* 재시작 실패는 무응답으로 처리된다 */
-      }
+    if (!stopped && !fatal && restarts < MAX_RESTARTS) {
+      restarts += 1;
+      timer = setTimeout(() => {
+        try {
+          rec.start();
+        } catch {
+          /* 재시작 실패는 무응답으로 처리된다 */
+        }
+      }, RESTART_DELAY_MS);
+      return;
     }
+    if (!stopped && !fatal) h.onError?.('too-many-restarts');
     h.onFinal?.(finalText.trim());
   };
 
@@ -198,10 +233,28 @@ export function startRecognition(h: RecognizerHandlers): (() => void) | null {
 
   return () => {
     stopped = true;
+    if (timer) clearTimeout(timer);
     try {
       rec.stop();
     } catch {
       h.onFinal?.(finalText.trim());
     }
   };
+}
+
+/** 오류 코드를 참가자에게 보여줄 한 문장으로 */
+export function recognitionErrorMessage(reason: string): string {
+  switch (reason) {
+    case 'network':
+      return '음성 인식 서버에 닿지 못했습니다. 아래에 직접 입력해 주세요.';
+    case 'not-allowed':
+    case 'service-not-allowed':
+      return '브라우저가 음성 인식을 막았습니다. 주소창의 마이크 권한을 허용해 주세요.';
+    case 'audio-capture':
+      return '마이크 장치를 열 수 없습니다. 아래에 직접 입력해 주세요.';
+    case 'language-not-supported':
+      return '이 브라우저가 한국어 인식을 지원하지 않습니다. 아래에 직접 입력해 주세요.';
+    default:
+      return '음성 인식이 멈췄습니다. 아래에 직접 입력해 주세요.';
+  }
 }

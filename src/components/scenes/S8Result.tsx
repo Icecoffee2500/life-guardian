@@ -163,15 +163,15 @@ export default function S8Result() {
               /* 이 체험의 이름값을 하는 자리. 반전 면으로 확실히 분리한다. */
               <div className="flex h-full flex-col rounded-[4px] bg-surface-inverse p-5 text-ink-on-inverse">
                 <div className="flex items-baseline justify-between">
-                  <p className="t-label" style={{ color: 'rgba(242,241,237,0.72)' }}>
+                  <p className="t-label" style={{ color: 'rgba(236,236,234,0.74)' }}>
                     나도 몰랐던 나
                   </p>
-                  <span className="t-label" style={{ color: 'rgba(242,241,237,0.72)' }}>
+                  <span className="t-label" style={{ color: 'rgba(236,236,234,0.74)' }}>
                     확신 {hf.confidence}
                   </span>
                 </div>
                 <p className="t-body-strong mt-3">{hf.observation}</p>
-                <p className="t-body mt-2" style={{ color: 'rgba(242,241,237,0.78)' }}>
+                <p className="t-body mt-2" style={{ color: 'rgba(236,236,234,0.8)' }}>
                   {hf.reading}
                 </p>
               </div>

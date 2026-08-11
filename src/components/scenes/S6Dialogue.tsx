@@ -11,7 +11,13 @@ import { getPersona } from '@/lib/sensors/personas';
 import { sessionRecorder } from '@/lib/session/recorder';
 import { dialogueTimingFor, questionsFor } from '@/lib/session/scenes';
 import { useSession } from '@/lib/session/store';
-import { cancelSpeech, speak, speechCapabilities, startRecognition } from '@/lib/speech';
+import {
+  cancelSpeech,
+  recognitionErrorMessage,
+  speak,
+  speechCapabilities,
+  startRecognition,
+} from '@/lib/speech';
 import { openMicrophone, type MicHandle } from '@/lib/audio-level';
 
 type Phase = 'read' | 'answer' | 'recover';
@@ -30,10 +36,15 @@ const ACK = '기록했습니다';
  * 마이크 권한을 요청하지도 않았고 소리가 들어오는지 확인하지도 않았다.
  * 참가자는 말했는데 아무것도 안 적히는 화면을 보고 있어야 했다.
  *
- * 지금은 세 가지를 지킨다:
- *  1. 마이크를 **명시적으로 연다** (getUserMedia). 권한 프롬프트가 제때 뜬다.
- *  2. 입력 레벨 막대로 **소리가 들어오는 것을 보여준다.** 인식 성공 여부와 별개다.
- *  3. 타이핑 입력을 폴백이 아니라 **항상 같이** 둔다. 어느 쪽으로든 답할 수 있다.
+ * 지금은 네 가지를 지킨다:
+ *  1. 마이크를 **명시적으로 연다**. 권한 프롬프트가 제때 뜬다.
+ *  2. 인식기가 마이크를 여는 순간(onAudioStart)을 받아 '듣는 중'을 표시한다.
+ *  3. 실패하면 **이유 코드를 화면에 그대로 보여준다.** 부스에서 추측하지 않기 위해서다.
+ *  4. 타이핑 입력을 폴백이 아니라 **항상 같이** 둔다. 어느 쪽으로든 답할 수 있다.
+ *
+ * 마이크 장치는 인식기에게 넘긴다. 레벨 미터용 스트림을 붙잡고 있으면
+ * 브라우저 인식이 장치를 못 여는 환경이 있어서, 인식이 되는 브라우저에서는
+ * 권한만 받고 스트림을 즉시 놓아준다.
  */
 export default function S6Dialogue({
   onDone,
@@ -58,21 +69,19 @@ export default function S6Dialogue({
 
   /** 참가자가 음성 입력을 켰는가 — 인식기의 수명을 결정한다 */
   const [voiceOn, setVoiceOn] = useState(false);
-  /** 레벨 미터용 스트림이 살아 있는가. 인식과 별개로 꺼질 수 있다(아래 audio-capture 참조) */
+  /** 레벨 미터용 스트림이 살아 있는가. 인식을 지원하지 않는 브라우저에서만 켠다. */
   const [meterOn, setMeterOn] = useState(false);
-  /** 마이크 입력 레벨 0~1 — "듣고 있다"는 유일한 정직한 증거 */
+  /** 마이크 입력 레벨 0~1 */
   const [level, setLevel] = useState(0);
   const [micNote, setMicNote] = useState<string | null>(null);
-  /** 인식기를 다시 붙이기 위한 카운터 */
-  const [recNonce, setRecNonce] = useState(0);
+  /** 인식기가 마이크를 실제로 열었는가 — 예전의 레벨 미터를 대신하는 증거 */
+  const [listening, setListening] = useState(false);
 
   const micRef = useRef<MicHandle | null>(null);
   const transcriptRef = useRef('');
   const speechStartRef = useRef<number | null>(null);
   /** 지금 진행 중인 문항 번호 — 인식 콜백이 이벤트에 붙인다 */
   const curQRef = useRef<number | null>(null);
-  /** 장치 충돌로 레벨 스트림을 이미 한 번 놓아주었는가 */
-  const releasedRef = useRef(false);
   const skipRef = useRef<(() => void) | null>(null);
   const pausedRef = useRef(paused);
   const onDoneRef = useRef(onDone);
@@ -90,19 +99,30 @@ export default function S6Dialogue({
   }, [onProgress]);
 
   // ── 마이크 열기 ─────────────────────────────────────────────
+  /*
+    getUserMedia는 **권한을 받기 위해서만** 연다. 받자마자 장치를 놓아준다.
+
+    레벨 미터를 위해 스트림을 붙잡고 있었는데, 그 스트림이 마이크를 쥔 채로는
+    브라우저 음성 인식이 장치를 열지 못하는 환경이 있다(audio-capture / network).
+    미터는 "듣고 있다"를 보여주는 장치일 뿐이고, 인식은 이 씬의 기능 자체다.
+    둘이 부딪히면 미터를 포기한다 — 대신 인식기가 마이크를 여는 순간(onAudioStart)을
+    받아서 같은 역할을 시킨다.
+
+    인식을 아예 지원하지 않는 브라우저에서만 스트림을 붙잡고 미터를 돌린다.
+  */
   const enableMic = useCallback(async () => {
     setMicNote(null);
     const mic = await openMicrophone();
-    if (mic) {
+    if (!mic) {
+      setMicNote('마이크 권한을 받지 못했습니다. 아래에 직접 입력해 주세요.');
+    } else if (caps.stt) {
+      mic.stop();
+    } else {
       micRef.current = mic;
       setMeterOn(true);
-    } else {
-      // 레벨 미터는 못 만들었어도 인식은 자기 권한으로 열릴 수 있다.
-      // 여기서 포기해 버리면 "말했는데 아무것도 안 적힌다"로 되돌아간다.
-      setMicNote('입력 레벨을 표시할 수 없습니다. 인식은 그대로 시도합니다.');
     }
     setVoiceOn(true);
-  }, []);
+  }, [caps.stt]);
 
   // 레벨 미터 — 스트림이 살아 있는 동안만 돈다
   useEffect(() => {
@@ -295,7 +315,10 @@ export default function S6Dialogue({
   useEffect(() => {
     if (auto || !answering || !voiceOn || !caps.stt) return;
 
+    // listening은 정리(cleanup)에서만 내린다. 이펙트 본문에서 동기 setState를 하면
+    // 렌더가 연쇄로 다시 돈다 (react-hooks/set-state-in-effect).
     const stop = startRecognition({
+      onAudioStart: () => setListening(true),
       onSpeechStart: markSpeech,
       onPartial: (t) => {
         if (t) markSpeech();
@@ -306,31 +329,19 @@ export default function S6Dialogue({
         if (t) transcriptRef.current = t;
       },
       onError: (reason) => {
-        if (reason === 'no-speech' || reason === 'aborted') return;
-        if ((reason === 'audio-capture' || reason === 'not-allowed') && !releasedRef.current) {
-          /*
-            레벨 미터용 스트림이 마이크를 붙잡고 있어 인식이 장치를 열지 못하는
-            환경이 있다. 둘 중 하나를 놓아야 한다면 놓을 쪽은 미터다 —
-            미터는 보기 좋은 증거일 뿐이고, 인식은 이 씬의 기능 자체다.
-          */
-          releasedRef.current = true;
-          micRef.current?.stop();
-          micRef.current = null;
-          setMeterOn(false);
-          setLevel(0);
-          setMicNote('음성 인식을 위해 입력 표시를 껐습니다. 계속 말씀하세요.');
-          setRecNonce((n) => n + 1);
-          return;
-        }
-        setMicNote('음성 인식이 끊겼습니다. 아래에 직접 입력해 주세요.');
+        setListening(false);
+        // 이유 코드를 괄호에 남긴다. 부스에서 "왜 안 되지"를 추측하지 않기 위해서다.
+        setMicNote(`${recognitionErrorMessage(reason)} (${reason})`);
       },
     });
 
     if (!stop) setMicNote('이 브라우저에서는 음성 인식을 시작할 수 없습니다. 아래에 직접 입력해 주세요.');
-    return () => stop?.();
+    return () => {
+      stop?.();
+      setListening(false);
+    };
     // idx: 문항이 바뀌면 인식기를 새로 만들어 누적 텍스트를 비운다
-    // recNonce: 장치 충돌로 미터를 놓아준 뒤 다시 붙이기 위한 것
-  }, [answering, auto, caps.stt, idx, markSpeech, recNonce, voiceOn]);
+  }, [answering, auto, caps.stt, idx, markSpeech, voiceOn]);
 
   const onType = (v: string) => {
     transcriptRef.current = v;
@@ -391,10 +402,15 @@ export default function S6Dialogue({
                 <span
                   className="h-2.5 w-2.5 shrink-0 rounded-full"
                   style={{
-                    background: answering ? 'var(--color-hr)' : 'var(--color-line-strong)',
+                    background:
+                      answering && (listening || meterOn)
+                        ? 'var(--color-hr)'
+                        : 'var(--color-line-strong)',
                   }}
                 />
-                <span className="t-label shrink-0">{answering ? '듣는 중' : '대기'}</span>
+                <span className="t-label shrink-0">
+                  {!answering ? '대기' : listening || meterOn ? '듣는 중' : '마이크 여는 중'}
+                </span>
                 {meterOn ? (
                   /* 이 막대가 움직이면 소리가 실제로 들어오고 있다는 뜻이다 */
                   <div className="h-2 flex-1 overflow-hidden rounded-[1px] bg-surface-sunken">
@@ -407,7 +423,9 @@ export default function S6Dialogue({
                     />
                   </div>
                 ) : (
-                  <span className="t-label flex-1">입력 표시 없음</span>
+                  <span className="t-label flex-1">
+                    {answering && listening ? '말씀하시면 아래에 적힙니다' : ''}
+                  </span>
                 )}
               </div>
             </div>

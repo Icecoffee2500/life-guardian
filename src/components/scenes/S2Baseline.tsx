@@ -103,7 +103,7 @@ export default function S2Baseline() {
             style={{
               inset: 0,
               background: settled
-                ? 'radial-gradient(circle, rgba(78,107,47,0.14) 0%, rgba(78,107,47,0) 70%)'
+                ? 'radial-gradient(circle, rgba(74,92,44,0.16) 0%, rgba(74,92,44,0) 70%)'
                 : 'radial-gradient(circle, rgba(22,22,26,0.06) 0%, rgba(22,22,26,0) 70%)',
               transition: 'background 2500ms ease',
             }}
