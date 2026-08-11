@@ -118,7 +118,7 @@ export default function S2Baseline() {
           <AnimatePresence mode="wait">
             <motion.span
               key={inhaling ? 'in' : 'out'}
-              className="t-title text-ink-2"
+              className="t-title text-ink"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}

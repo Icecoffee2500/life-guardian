@@ -19,6 +19,7 @@ import {
   startRecognition,
 } from '@/lib/speech';
 import { openMicrophone, type MicHandle } from '@/lib/audio-level';
+import { startWhisper, type WhisperHandle } from '@/lib/whisper';
 
 type Phase = 'read' | 'answer' | 'recover';
 
@@ -76,6 +77,19 @@ export default function S6Dialogue({
   const [micNote, setMicNote] = useState<string | null>(null);
   /** 인식기가 마이크를 실제로 열었는가 — 예전의 레벨 미터를 대신하는 증거 */
   const [listening, setListening] = useState(false);
+  /**
+   * 어느 인식기를 쓰는가.
+   * - web     : 브라우저 내장. 즉시 시작되지만 오디오를 구글 서버로 보낸다.
+   * - whisper : 기기 안에서 도는 모델. 첫 실행에 내려받기가 필요한 대신 어디서든 된다.
+   *
+   * web으로 시작해서 막히면(network 등) whisper로 넘어가고, 한 번 넘어가면
+   * 그 세션 동안 되돌아가지 않는다. 문항마다 같은 실패를 반복할 이유가 없다.
+   */
+  const [engine, setEngine] = useState<'web' | 'whisper'>(() =>
+    speechCapabilities().stt ? 'web' : 'whisper',
+  );
+  /** whisper 모델 내려받기 진행률 (0~100). null이면 준비됨 */
+  const [modelPct, setModelPct] = useState<number | null>(null);
 
   const micRef = useRef<MicHandle | null>(null);
   const transcriptRef = useRef('');
@@ -313,35 +327,76 @@ export default function S6Dialogue({
     그 즉시 인식이 시작된다.
   */
   useEffect(() => {
-    if (auto || !answering || !voiceOn || !caps.stt) return;
+    if (auto || !answering || !voiceOn) return;
 
     // listening은 정리(cleanup)에서만 내린다. 이펙트 본문에서 동기 setState를 하면
     // 렌더가 연쇄로 다시 돈다 (react-hooks/set-state-in-effect).
-    const stop = startRecognition({
-      onAudioStart: () => setListening(true),
-      onSpeechStart: markSpeech,
-      onPartial: (t) => {
-        if (t) markSpeech();
-        transcriptRef.current = t;
-        setTranscript(t);
-      },
-      onFinal: (t) => {
-        if (t) transcriptRef.current = t;
-      },
-      onError: (reason) => {
+    const write = (t: string) => {
+      if (t) markSpeech();
+      transcriptRef.current = t;
+      setTranscript(t);
+    };
+
+    // ── 1) 브라우저 내장 인식 ──
+    if (engine === 'web' && caps.stt) {
+      const stop = startRecognition({
+        onAudioStart: () => setListening(true),
+        onSpeechStart: markSpeech,
+        onPartial: write,
+        onFinal: (t) => {
+          if (t) transcriptRef.current = t;
+        },
+        onError: (reason) => {
+          setListening(false);
+          /*
+            여기가 이번 수정의 핵심이다.
+            network는 "브라우저 인식이 구글 서버에 닿지 못했다"는 뜻이고, 재시도해도
+            같은 결과다. 예전에는 이 지점에서 참가자에게 "직접 입력하세요"라고 떠넘겼다.
+            이제는 기기 안에서 도는 인식기로 갈아탄다 — 외부 서버가 필요 없으니
+            사내망이든 VPN이든 상관없다.
+          */
+          setEngine('whisper');
+          setMicNote(
+            `${recognitionErrorMessage(reason)} (${reason}) 기기 안에서 처리하는 인식기로 전환합니다.`,
+          );
+        },
+      });
+
+      if (!stop) setEngine('whisper');
+      return () => {
+        stop?.();
         setListening(false);
-        // 이유 코드를 괄호에 남긴다. 부스에서 "왜 안 되지"를 추측하지 않기 위해서다.
-        setMicNote(`${recognitionErrorMessage(reason)} (${reason})`);
+      };
+    }
+
+    // ── 2) 기기 안에서 도는 Whisper ──
+    let handle: WhisperHandle | null = null;
+    let dropped = false;
+    void startWhisper({
+      onProgress: (pct) => setModelPct(Math.round(pct)),
+      onReady: () => {
+        setModelPct(null);
+        setListening(true);
+        setMicNote(null);
       },
+      onSpeechStart: markSpeech,
+      onPartial: write,
+      onError: (message) => {
+        setListening(false);
+        setMicNote(`음성 인식을 시작하지 못했습니다 (${message}). 아래에 직접 입력해 주세요.`);
+      },
+    }).then((h) => {
+      if (dropped) h?.stop();
+      else handle = h;
     });
 
-    if (!stop) setMicNote('이 브라우저에서는 음성 인식을 시작할 수 없습니다. 아래에 직접 입력해 주세요.');
     return () => {
-      stop?.();
+      dropped = true;
+      handle?.stop();
       setListening(false);
     };
     // idx: 문항이 바뀌면 인식기를 새로 만들어 누적 텍스트를 비운다
-  }, [answering, auto, caps.stt, idx, markSpeech, voiceOn]);
+  }, [answering, auto, caps.stt, engine, idx, markSpeech, voiceOn]);
 
   const onType = (v: string) => {
     transcriptRef.current = v;
@@ -409,7 +464,13 @@ export default function S6Dialogue({
                   }}
                 />
                 <span className="t-label shrink-0">
-                  {!answering ? '대기' : listening || meterOn ? '듣는 중' : '마이크 여는 중'}
+                  {!answering
+                    ? '대기'
+                    : modelPct !== null
+                      ? `인식기 준비 ${modelPct}%`
+                      : listening || meterOn
+                        ? '듣는 중'
+                        : '마이크 여는 중'}
                 </span>
                 {meterOn ? (
                   /* 이 막대가 움직이면 소리가 실제로 들어오고 있다는 뜻이다 */
@@ -422,9 +483,21 @@ export default function S6Dialogue({
                       }}
                     />
                   </div>
+                ) : modelPct !== null ? (
+                  /* 모델 내려받기 — 처음 한 번만이고, 이후에는 캐시에서 바로 뜬다 */
+                  <div className="h-2 flex-1 overflow-hidden rounded-[1px] bg-surface-sunken">
+                    <div
+                      className="h-full transition-[width] duration-200"
+                      style={{ width: `${modelPct}%`, background: 'var(--color-brand)' }}
+                    />
+                  </div>
                 ) : (
                   <span className="t-label flex-1">
-                    {answering && listening ? '말씀하시면 아래에 적힙니다' : ''}
+                    {answering && listening
+                      ? engine === 'whisper'
+                        ? '말씀하시면 기기 안에서 받아 적습니다'
+                        : '말씀하시면 아래에 적힙니다'
+                      : ''}
                   </span>
                 )}
               </div>

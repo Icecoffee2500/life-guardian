@@ -242,19 +242,24 @@ export function startRecognition(h: RecognizerHandlers): (() => void) | null {
   };
 }
 
-/** 오류 코드를 참가자에게 보여줄 한 문장으로 */
+/**
+ * 오류 코드를 참가자에게 보여줄 한 문장으로.
+ *
+ * 여기서 "직접 입력하세요"로 끝내지 않는다 — 호출부가 뒤에 대안(기기 내 인식기)을
+ * 이어 붙이기 때문이다. 이 문장은 원인만 말한다.
+ */
 export function recognitionErrorMessage(reason: string): string {
   switch (reason) {
     case 'network':
-      return '음성 인식 서버에 닿지 못했습니다. 아래에 직접 입력해 주세요.';
+      return '브라우저 음성 인식이 서버에 닿지 못했습니다.';
     case 'not-allowed':
     case 'service-not-allowed':
-      return '브라우저가 음성 인식을 막았습니다. 주소창의 마이크 권한을 허용해 주세요.';
+      return '브라우저가 음성 인식을 막았습니다.';
     case 'audio-capture':
-      return '마이크 장치를 열 수 없습니다. 아래에 직접 입력해 주세요.';
+      return '브라우저 인식이 마이크 장치를 열지 못했습니다.';
     case 'language-not-supported':
-      return '이 브라우저가 한국어 인식을 지원하지 않습니다. 아래에 직접 입력해 주세요.';
+      return '이 브라우저는 한국어 인식을 지원하지 않습니다.';
     default:
-      return '음성 인식이 멈췄습니다. 아래에 직접 입력해 주세요.';
+      return '브라우저 음성 인식이 멈췄습니다.';
   }
 }

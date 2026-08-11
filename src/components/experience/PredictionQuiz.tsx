@@ -58,7 +58,7 @@ export function QuizAsk({
                   onClick={() => onPick(i, o)}
                   className={`flex min-h-[56px] items-center gap-4 rounded-[4px] border px-5 text-left transition-colors duration-200 ${
                     picked
-                      ? 'border-ink bg-surface-inverse text-ink-on-inverse'
+                      ? 'border-brand bg-brand text-white'
                       : 'border-line-strong bg-surface-raised text-ink hover:bg-surface-sunken'
                   }`}
                 >
@@ -119,8 +119,9 @@ export function QuizReveal({ items, picks }: { items: QuizItem[]; picks: (number
                     picks[i] === null
                       ? 'var(--color-ink-3)'
                       : hit
-                        ? 'var(--color-hrv)'
-                        : 'var(--color-hr)',
+                        ? 'var(--color-ok)'
+                        : // 브랜드 파랑을 '틀림'에 쓰지 않는다 — 파랑은 이 화면에서 긍정이다
+                          'var(--color-warn)',
                 }}
               >
                 {picks[i] === null ? '무응답' : hit ? '적중' : '빗나감'}

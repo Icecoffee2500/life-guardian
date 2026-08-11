@@ -134,7 +134,7 @@ function HealthPanel() {
       <span className="t-label">{label}</span>
       <span
         className="t-body-strong text-[14px]"
-        style={{ color: warn ? 'var(--color-hr)' : 'var(--color-ink)' }}
+        style={{ color: warn ? 'var(--color-warn)' : 'var(--color-ink)' }}
       >
         {value}
       </span>
@@ -258,7 +258,7 @@ export default function OperatorPage() {
   const sceneDefIdx = SCENES.findIndex((s) => s.id === shownScene);
 
   return (
-    <main className="min-h-dvh bg-surface px-6 py-8">
+    <main className="min-h-dvh px-6 py-8">
       <div className="mx-auto max-w-5xl">
         <header className="flex flex-wrap items-baseline justify-between gap-3">
           <div>
@@ -307,7 +307,7 @@ export default function OperatorPage() {
                   onClick={() => command({ kind: 'signal-mode', value: m.id }, () => setSignalMode(m.id))}
                   className={`flex w-full items-baseline gap-3 rounded-[4px] px-3 py-2.5 text-left transition-colors duration-200 ${
                     signalMode === m.id
-                      ? 'bg-surface-inverse text-ink-on-inverse'
+                      ? 'bg-brand text-white'
                       : 'border border-line hover:bg-surface-sunken'
                   }`}
                 >
@@ -329,7 +329,7 @@ export default function OperatorPage() {
                   onClick={() => command({ kind: 'persona', value: p.id }, () => setPersona(p.id))}
                   className={`block w-full rounded-[4px] px-3 py-2.5 text-left transition-colors duration-200 ${
                     personaId === p.id
-                      ? 'bg-surface-inverse text-ink-on-inverse'
+                      ? 'bg-brand text-white'
                       : 'border border-line hover:bg-surface-sunken'
                   }`}
                 >

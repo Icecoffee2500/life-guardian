@@ -121,18 +121,25 @@ export default function S8Result() {
           )}
           <div className="min-w-0 text-center sm:text-left">
           <p className="t-label">{nickname ? `${nickname} 님의 관측` : '오늘의 관측'}</p>
-          <h1 className="t-display mt-2 text-ink" aria-label={receipt.persona_name}>
+          <h1
+            className="t-display mt-2"
+            style={{ color: 'var(--color-brand)' }}
+            aria-label={receipt.persona_name}
+          >
             <span aria-hidden>{typed.shown}</span>
             {!typed.done && (
               <span
                 aria-hidden
-                className="ml-1 inline-block h-[0.85em] w-[3px] translate-y-[0.05em] bg-ink align-middle"
-                style={{ animation: 'caret-blink 1s steps(1,end) infinite' }}
+                className="ml-1 inline-block h-[0.85em] w-[3px] translate-y-[0.05em] align-middle"
+                style={{
+                  background: 'var(--color-brand)',
+                  animation: 'caret-blink 1s steps(1,end) infinite',
+                }}
               />
             )}
           </h1>
           <motion.p
-            className="t-title mt-2 text-brand"
+            className="t-title mt-2 text-ink-2"
             initial={{ opacity: 0 }}
             animate={{ opacity: typed.done ? 1 : 0 }}
             transition={{ duration: 0.5 }}

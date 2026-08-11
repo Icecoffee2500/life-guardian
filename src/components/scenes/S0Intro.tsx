@@ -37,7 +37,8 @@ export default function S0Intro({ onStart }: { onStart: () => void }) {
         />
 
         <motion.h1
-          className="t-display text-balance text-center text-ink text-[clamp(2rem,5.4vw,3.9rem)]"
+          className="t-display text-balance text-center text-[clamp(2rem,5.4vw,3.9rem)]"
+          style={{ color: 'var(--color-brand)' }}
           animate={{ opacity: [0.82, 1, 0.86, 0.82] }}
           transition={{ duration: 1.15, repeat: Infinity, ease: 'easeInOut' }}
         >
@@ -87,7 +88,7 @@ export default function S0Intro({ onStart }: { onStart: () => void }) {
                 onClick={() => setMode(m)}
                 className={`flex-1 rounded-full px-4 py-2.5 text-[13px] font-semibold tracking-[0.01em] transition-colors duration-300 ${
                   mode === m
-                    ? 'bg-surface-inverse text-ink-on-inverse'
+                    ? 'bg-brand text-white'
                     : 'border border-line-strong text-ink-2 hover:bg-surface-sunken'
                 }`}
               >

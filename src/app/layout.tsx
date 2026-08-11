@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from 'next';
+import SilkBackdrop from '@/components/SilkBackdrop';
 import './globals.css';
 
 const DESCRIPTION =
@@ -29,7 +30,7 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: '#f2f1ed',
+  themeColor: '#fbfcfd',
   width: 'device-width',
   initialScale: 1,
   maximumScale: 1,
@@ -40,7 +41,11 @@ export default function RootLayout({
 }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="ko">
-      <body className="antialiased">{children}</body>
+      <body className="antialiased">
+        {/* 모든 화면 뒤에 같은 결이 흐른다. 페이지마다 다르면 한 제품으로 안 읽힌다. */}
+        <SilkBackdrop />
+        {children}
+      </body>
     </html>
   );
 }

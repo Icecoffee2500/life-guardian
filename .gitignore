@@ -49,3 +49,7 @@ test-results/
 /sessions/
 *.session.json
 public/vendor/webgazer/
+public/vendor/transformers/
+
+# 빌드 때 내려받는 모델 (scripts/vendor-whisper.mjs)
+public/models/

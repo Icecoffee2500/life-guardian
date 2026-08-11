@@ -33,7 +33,7 @@ export default function ReceiptPage({ params }: { params: Promise<{ sessionId: s
   }, [sessionId]);
 
   return (
-    <main className="min-h-dvh bg-surface py-10 print:bg-white print:py-0">
+    <main className="min-h-dvh py-10 print:bg-white print:py-0">
       {state.kind === 'loading' && (
         <p className="t-label pt-20 text-center">불러오는 중입니다</p>
       )}

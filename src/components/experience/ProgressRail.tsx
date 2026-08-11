@@ -22,7 +22,9 @@ export default function ProgressRail({ scene, sceneProgress }: Props) {
   return (
     <header className="pointer-events-none absolute inset-x-0 top-0 z-30 select-none bg-surface/95 backdrop-blur-[2px]">
       <div className="flex items-center justify-between gap-4 px-6 pt-4 pb-3 sm:px-10">
-        <span className="t-label text-ink-3">LIFE GUARDIAN</span>
+        <span className="t-label" style={{ color: 'var(--color-brand)' }}>
+          LIFE GUARDIAN
+        </span>
         <div className="flex items-baseline gap-3">
           <span className="t-body-strong text-ink">{current.label}</span>
           <span className="t-number text-[13px] text-ink-3">
@@ -36,7 +38,7 @@ export default function ProgressRail({ scene, sceneProgress }: Props) {
         {SCENES.map((s, i) => (
           <div key={s.id} className="h-1.5 flex-1 overflow-hidden rounded-[1px] bg-surface-sunken">
             <div
-              className="h-full bg-ink transition-[width] duration-200 ease-linear"
+              className="h-full bg-brand transition-[width] duration-200 ease-linear"
               style={{
                 width: i < idx ? '100%' : i === idx ? `${Math.min(1, sceneProgress) * 100}%` : '0%',
               }}

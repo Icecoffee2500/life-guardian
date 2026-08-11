@@ -51,7 +51,7 @@ export default function SceneNav({
         data-ready={ready}
         className={`${base} ${
           ready
-            ? 'bg-surface-inverse text-ink-on-inverse hover:bg-[#2b2b29]'
+            ? 'bg-brand text-white hover:bg-[#0f1f7d]'
             : 'border border-line-strong bg-surface-raised text-ink hover:bg-surface-sunken'
         }`}
         /* 준비가 됐을 때 한 번만 조용히 알린다. 계속 깜빡이면 그게 또 재촉이다. */
