@@ -36,9 +36,11 @@ export default function Button({
   };
 
   const styles: Record<Variant, string> = {
-    // 이 화면에서 다음으로 할 일 — 화면에 하나만 둔다
-    primary:
-      'bg-surface-inverse text-ink-on-inverse hover:bg-[#2b2b29] active:bg-[#000]',
+    /*
+      이 화면에서 다음으로 할 일 — 화면에 하나만 둔다.
+      면은 삼성 블루로 채운다. 흰 화면에서 파란 면 하나가 곧 "여기를 누르세요"다.
+    */
+    primary: 'bg-brand text-white hover:bg-[#0f1f7d] active:bg-[#0b1760]',
     // 부차적 선택지 — 눌러도 되지만 주된 길은 아니다
     secondary:
       'border border-line-strong bg-surface-raised text-ink hover:bg-surface-sunken',

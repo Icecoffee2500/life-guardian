@@ -134,7 +134,7 @@ export default function ExperiencePage() {
     <main
       data-scene={scene}
       data-status={status}
-      className="relative h-dvh w-full overflow-hidden bg-surface"
+      className="relative h-dvh w-full overflow-hidden"
     >
       {scene !== 'S0' && <ProgressRail scene={scene} sceneProgress={railProgress} />}
 

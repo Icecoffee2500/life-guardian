@@ -42,7 +42,7 @@ const SIGNALS = [
 
 export default function Home() {
   return (
-    <main className="bg-surface">
+    <main>
       {/* ── 히어로 ─────────────────────────────────────────── */}
       <section className="relative flex min-h-dvh flex-col items-center justify-center overflow-hidden px-6">
         <HeroPulse />
@@ -50,9 +50,18 @@ export default function Home() {
         <div className="relative z-10 flex flex-col items-center">
           {/* "LIFE GUARDIAN"은 짧은 라틴 로고 라벨이라 t-label의 좁은 자간 대신
               넓은 자간을 그대로 유지한다 — 한글 본문과 달리 넓혀도 읽기가 나빠지지 않는다. */}
-          <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-ink-3">Life Guardian</p>
+          <p
+            className="text-[11px] font-semibold uppercase tracking-[0.28em]"
+            style={{ color: 'var(--color-brand)' }}
+          >
+            Life Guardian
+          </p>
 
-          <h1 className="t-hero mt-10 text-balance text-center text-ink">
+          {/* 제출 영상의 인상 그대로 — 흰 화면 위의 파란 한 문장 */}
+          <h1
+            className="t-hero mt-10 text-balance text-center"
+            style={{ color: 'var(--color-brand)' }}
+          >
             당신의 몸은
             <br />
             이미 알고 있습니다
@@ -70,7 +79,8 @@ export default function Home() {
             </Button>
           </Link>
 
-          <p className="t-label mt-7">센서가 없어도 됩니다. 시뮬레이션으로 전체가 진행됩니다.</p>
+          {/* 자간을 벌린 한 줄 — 제출 영상의 캡션 처리 */}
+          <p className="t-label t-spaced mt-8">센서가 없어도 됩니다. 시뮬레이션으로 전체가 진행됩니다.</p>
         </div>
 
         <div className="absolute inset-x-0 bottom-10 flex justify-center">

@@ -298,7 +298,7 @@ export default function S1Connect({ onDone }: { onDone: () => void }) {
               if (!next) heartbeat.disable();
             }}
             className={`relative h-8 w-14 shrink-0 rounded-full border transition-colors duration-200 ${
-              soundOn ? 'border-ink bg-surface-inverse' : 'border-line-strong bg-surface-sunken'
+              soundOn ? 'border-brand bg-brand' : 'border-line-strong bg-surface-sunken'
             }`}
           >
             <span

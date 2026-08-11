@@ -20,41 +20,44 @@
     면·선·여백으로 구분한다. 그림자와 블러를 쌓지 않는다.
 
   색의 규칙
-  - 바탕은 **중성 회색**이다. 따뜻한 종이색은 아늑하지만 그만큼 말이 많다.
-    회색은 아무 말도 하지 않아서, 화면에 남는 건 글자와 신호뿐이 된다.
-  - 순백 카드를 쓰지 않는다. 회색 바탕 위의 흰 카드는 대시보드처럼 보인다.
-    면은 바탕보다 아주 조금만 밝게 들어 올린다.
-  - 강조색은 없다. 색이 허용되는 자리는 생체신호 채널 셋뿐이고,
-    그마저 채도를 낮춰 잉크에 가깝게 둔다.
+  - 메인 컬러는 **삼성 블루 #1428A0**이다 (Pantone 2748C / RGB 20·40·160).
+    삼성생명 워드마크가 쓰는 그 파랑이고, 로고를 붙이지 않고도 이 데모가
+    어디 출품물인지 알리는 유일한 장치다.
+  - 바탕은 흰색에 가깝다. 회색 바탕은 조용하지만 무겁다.
+    제출 영상의 인상이 "밝고 넓은 흰 화면 위에 파란 한 획"이라 그쪽을 따른다.
+  - 심박은 브랜드 파랑으로 그린다. 화면에서 가장 자주 보이는 선이 심박 파형이고,
+    그 선이 곧 브랜드가 되는 편이 색을 하나 더 늘리는 것보다 낫다.
   - 그 대신 대비는 낮추지 않는다. 정갈함과 흐릿함은 다른 말이다 —
-    아래 모든 글자색은 바탕 대비 5:1 이상이고, 이전 팔레트보다 오히려 높다.
+    아래 모든 글자색은 바탕 대비 5:1 이상이다.
 */
 
 @theme {
   /* ── 면 (밝은 쪽부터) ────────────────────────────── */
-  --color-surface: #e8e8e6; /* 바탕 — 중성 회색 */
-  --color-surface-raised: #f3f3f1; /* 카드·패널. 흰색이 아니라 '조금 밝은 회색' */
-  --color-surface-sunken: #dbdbd8; /* 트랙·입력 배경 */
-  --color-surface-inverse: #171716; /* 반전 면 (강조 블록) */
+  --color-surface: #fbfcfd; /* 바탕 — 흰색에 아주 옅은 푸른 기 */
+  --color-surface-raised: #ffffff; /* 카드·패널 */
+  --color-surface-sunken: #eef1f6; /* 트랙·입력 배경 */
+  --color-surface-inverse: #0e1a44; /* 반전 면 — 검정이 아니라 브랜드의 깊은 쪽 */
 
   /* ── 글자 (괄호 안은 바탕 대비) ───────────────────── */
-  --color-ink: #161615; /* 본문·제목 (14.9:1) */
-  --color-ink-2: #454544; /* 보조 (8.4:1) */
-  --color-ink-3: #6a6a68; /* 라벨 (5.3:1) — 이보다 흐린 회색은 쓰지 않는다 */
-  --color-ink-on-inverse: #ececea;
+  --color-ink: #14161c; /* 본문·제목 (16:1) */
+  --color-ink-2: #464b57; /* 보조 (8.4:1) */
+  --color-ink-3: #6c7280; /* 라벨 (5.2:1) — 이보다 흐린 회색은 쓰지 않는다 */
+  --color-ink-on-inverse: #eef2fb;
 
   /* ── 선 ─────────────────────────────────────────── */
-  --color-line: #d6d6d3; /* 기본 구분선 — 있는 줄 모르게 */
-  --color-line-strong: #a3a3a0; /* 입력 테두리·조작 가능한 것의 윤곽 */
+  --color-line: #e3e7ee; /* 기본 구분선 — 있는 줄 모르게 */
+  --color-line-strong: #b6bdcb; /* 입력 테두리·조작 가능한 것의 윤곽 */
 
-  /* ── 생체신호 — 색이 허용된 유일한 자리 ─────────────
-     채도를 낮춰 잉크에 가깝게 둔다. 채널을 구분할 만큼만 다르면 된다. */
-  --color-hr: #a0381c; /* 심박 (6.7:1) */
-  --color-gsr: #1f5a55; /* 피부전도 (6.6:1) */
-  --color-hrv: #4a5c2c; /* 심박변이 (6.2:1) */
+  /* ── 브랜드 ─────────────────────────────────────── */
+  --color-brand: #1428a0; /* 삼성 블루 (8.9:1) */
+  --color-brand-2: #2f47c4; /* 큰 면·획에 쓰는 밝은 쪽 */
+  --color-brand-wash: #eef1fb; /* 브랜드 색의 아주 옅은 면 */
 
-  /* 강조색을 두지 않는다. 위계는 크기와 굵기로 만든다. */
-  --color-brand: #161615;
+  /* ── 생체신호 ─────────────────────────────────────
+     심박은 브랜드 파랑을 그대로 쓴다. 나머지 둘만 채널 구분용으로 다르게. */
+  --color-hr: #1428a0; /* 심박 (8.9:1) */
+  --color-gsr: #0d6b72; /* 피부전도 (5.6:1) */
+  --color-hrv: #3d6b45; /* 심박변이 (5.5:1) */
 
   --color-warn: #8a4f00;
   --color-ok: #2c5f31;
@@ -98,7 +101,7 @@ body {
 }
 
 ::selection {
-  background: rgba(22, 22, 21, 0.14);
+  background: rgba(20, 40, 160, 0.13);
 }
 
 /* ── 타이포그래피 스케일 ──────────────────────────────
@@ -108,36 +111,49 @@ body {
    우선순위가 높아져서 `t-label text-hr` 같은 조합에서 색을 못 바꾼다.
    기본값은 여기서 주되, 필요하면 유틸리티로 덮을 수 있어야 한다. */
 @layer components {
-  /* 랜딩 히어로 — 이 문장 하나가 제안서 역할을 한다. 씬 제목보다 크다. */
+  /* 랜딩 히어로 — 이 문장 하나가 제안서 역할을 한다. 씬 제목보다 크다.
+     굵기를 700에서 내렸다. 큰 글씨는 굵을수록 무거워지지, 또렷해지지 않는다. */
   .t-hero {
-    font-size: clamp(2.25rem, 6vw, 4.25rem);
-    font-weight: 700;
-    line-height: 1.12;
-    letter-spacing: -0.035em;
+    font-size: clamp(2.4rem, 6.2vw, 4.5rem);
+    font-weight: 600;
+    line-height: 1.14;
+    letter-spacing: -0.03em;
   }
 
   /* 화면 제목 — 씬 하나의 지시문 */
   .t-display {
-    font-size: clamp(1.75rem, 3.4vw, 2.75rem);
+    font-size: clamp(1.8rem, 3.6vw, 2.9rem);
     font-weight: 600;
-    line-height: 1.22;
-    letter-spacing: -0.025em;
+    line-height: 1.28;
+    letter-spacing: -0.022em;
   }
-  
+
   /* 구획 제목 */
   .t-title {
     font-size: clamp(1.15rem, 2vw, 1.5rem);
     font-weight: 600;
-    line-height: 1.35;
-    letter-spacing: -0.018em;
+    line-height: 1.42;
+    letter-spacing: -0.014em;
+  }
+
+  /*
+    자간을 벌린 한 줄 — 제출 영상의 "세 상 을  바 꾸 는  강 화 학 습" 그 처리.
+    한국어에서 자간을 벌리면 글자가 하나씩 또박또박 놓여 정갈해 보인다.
+    대신 문장이 길어지면 오히려 읽기 어려워지므로 **짧은 한 줄에만** 쓴다.
+  */
+  .t-spaced {
+    letter-spacing: 0.22em;
+    /* 자간은 글자 오른쪽에 붙는다. 그대로 두면 가운데 정렬이 왼쪽으로 밀린다. */
+    text-indent: 0.22em;
+    font-weight: 500;
   }
   
   /* 본문 — 부스에서 서서 읽는 거리를 감안해 16px 아래로 내리지 않는다 */
   .t-body {
     font-size: clamp(1rem, 1.25vw, 1.0625rem);
     font-weight: 400;
-    line-height: 1.7;
-    letter-spacing: -0.005em;
+    line-height: 1.75;
+    letter-spacing: -0.003em;
   }
   
   .t-body-strong {
@@ -147,12 +163,13 @@ body {
     letter-spacing: -0.005em;
   }
   
-  /* 라벨 — 계기판·표의 항목명. 작아도 굵기로 읽히게 한다. */
+  /* 라벨 — 계기판·표의 항목명. 작아도 굵기로 읽히게 한다.
+     자간을 조금 더 벌려 대문자 라틴과 한글이 같은 리듬으로 놓이게 한다. */
   .t-label {
     font-size: 0.8125rem;
     font-weight: 600;
-    line-height: 1.4;
-    letter-spacing: 0.04em;
+    line-height: 1.5;
+    letter-spacing: 0.07em;
     color: var(--color-ink-3);
   }
   
@@ -174,6 +191,13 @@ body {
     background: var(--color-surface-raised);
     border: 1px solid var(--color-line);
     border-radius: 4px; /* 계기판의 모서리. 둥글릴수록 장난감이 된다. */
+  }
+
+  /* 브랜드 색 위의 아주 옅은 면 — 강조하되 소리치지 않을 때 */
+  .panel-brand {
+    background: var(--color-brand-wash);
+    border: 1px solid rgba(20, 40, 160, 0.12);
+    border-radius: 4px;
   }
   
   .hairline {
