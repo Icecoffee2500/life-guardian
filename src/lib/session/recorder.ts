@@ -105,6 +105,27 @@ export class SessionRecorder {
     this.markers.push(e);
   }
 
+  /**
+   * 그림 과제를 기록한다. 같은 과제를 다시 하면 **덮어쓴다**.
+   *
+   * 씬은 여러 번 마운트될 수 있다(개발 중 StrictMode 이중 마운트, 진행자가 ←로 되돌아옴).
+   * 그때마다 append하면 같은 id의 과제가 여러 개 쌓이고, 특징 추출은 `find`로
+   * 맨 앞의 것을 집는다 — 즉 **획이 하나도 없는 빈 기록이 진짜 그림을 가린다.**
+   * 실제로 이 버그 때문에 자동 모드에서 그림이 그려졌는데도 quality가 missing으로 나왔다.
+   *
+   * 단, 빈 기록이 이미 있는 그림을 덮지는 않는다. 마운트 순서에 상관없이
+   * "획이 있는 기록"이 이긴다.
+   */
+  putDrawTask(task: DrawTask): void {
+    const i = this.drawTasks.findIndex((t) => t.id === task.id);
+    if (i === -1) {
+      this.drawTasks.push(task);
+      return;
+    }
+    if (task.strokes.length === 0 && this.drawTasks[i].strokes.length > 0) return;
+    this.drawTasks[i] = task;
+  }
+
   enterScene(scene: string, t: number): void {
     const last = this.sceneSpans[this.sceneSpans.length - 1];
     if (last && last.end === null) last.end = t;

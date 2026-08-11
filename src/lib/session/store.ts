@@ -74,8 +74,17 @@ function enter(scene: SceneId): number {
   return t;
 }
 
+/**
+ * 세션이 아직 시작되지 않았음을 나타내는 값.
+ *
+ * 초기값으로 makeSessionId()를 부르면 안 된다 — 그 안의 난수가 서버 렌더와
+ * 클라이언트에서 다른 값을 만들어 하이드레이션 불일치가 난다.
+ * 실제 ID는 begin()에서, 즉 브라우저에서만 만든다.
+ */
+export const PENDING_SESSION_ID = '—';
+
 export const useSession = create<SessionState>((set, get) => ({
-  sessionId: makeSessionId(),
+  sessionId: PENDING_SESSION_ID,
   nickname: '',
   mode: 'full',
   signalMode: 'demo',
@@ -144,7 +153,7 @@ export const useSession = create<SessionState>((set, get) => ({
     sessionRecorder.clear();
     experienceBus.clear();
     set({
-      sessionId: makeSessionId(),
+      sessionId: PENDING_SESSION_ID,
       nickname: '',
       scene: 'S0',
       sceneStartedAt: 0,

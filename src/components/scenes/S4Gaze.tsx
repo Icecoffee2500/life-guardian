@@ -155,18 +155,33 @@ export default function S4Gaze({
     };
   }, [closeTrial, flips, pairs, personaId, timing]);
 
-  // 데모 모드에서는 포인터가 시선이다. 그 사실을 말로 설명하는 대신 빛으로 보여준다.
+  /**
+   * 데모 모드에서는 포인터가 시선이다. 그 사실을 말로 설명하는 대신 빛으로 보여준다.
+   *
+   * 단, **자극 노출 중에는 절대 켜지 않는다** (구현계획 3.2.1).
+   * 시선을 따라다니는 빛이 자극 위에 있으면 시선이 그 빛에 끌리고,
+   * 그러면 어느 쪽을 오래 봤는지가 성향이 아니라 조명 탓이 된다.
+   * 위치 추적은 계속하되 표시는 응시점 구간에만 한다.
+   */
+  const tracerVisible = phase !== 'expose';
   useEffect(() => {
     if (signalMode === 'auto') return;
     const el = pointerRef.current;
     if (!el) return;
     const h = (e: PointerEvent) => {
       el.style.transform = `translate3d(${e.clientX - 60}px, ${e.clientY - 60}px, 0)`;
-      el.style.opacity = '1';
+      el.dataset.moved = '1';
     };
     window.addEventListener('pointermove', h, { passive: true });
     return () => window.removeEventListener('pointermove', h);
   }, [signalMode]);
+
+  useEffect(() => {
+    const el = pointerRef.current;
+    if (!el) return;
+    // 포인터가 한 번도 안 움직였으면 아직 보여줄 것이 없다
+    el.style.opacity = tracerVisible && el.dataset.moved === '1' ? '1' : '0';
+  }, [tracerVisible]);
 
   const pair = idx >= 0 && idx < pairs.length ? pairs[idx] : null;
   const flipped = idx >= 0 ? flips[idx] : false;

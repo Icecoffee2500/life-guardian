@@ -144,7 +144,7 @@ export default function S5Draw({
   // ── 과제 전환 ────────────────────────────────────────────────────
   const commitTask = useCallback(() => {
     const { w, h } = sizeRef.current;
-    sessionRecorder.drawTasks.push({
+    sessionRecorder.putDrawTask({
       id: taskRef.current,
       startedAt: startedAtRef.current,
       endedAt: sessionClock.now(),

@@ -16,6 +16,7 @@ import S8Result from '@/components/scenes/S8Result';
 import { useSceneTimer } from '@/hooks/useSceneTimer';
 import { useSensorSetup } from '@/hooks/useSensors';
 import { useInterpretation } from '@/hooks/useInterpretation';
+import { useSessionBroadcast } from '@/hooks/useSessionBroadcast';
 import { useSession } from '@/lib/session/store';
 import { isSelfDriven, sceneDef } from '@/lib/session/scenes';
 
@@ -54,6 +55,9 @@ export default function ExperiencePage() {
     setSubProgress(0);
   }
   const railProgress = selfDriven ? subProgress : progress;
+
+  // 진행자 화면으로 실황을 내보낸다 (같은 기기의 다른 창 + Supabase가 있으면 다른 기기)
+  useSessionBroadcast(railProgress);
 
   // 진행자용 단축키: → 다음 씬, ← 이전 씬
   const back = useSession((s) => s.back);

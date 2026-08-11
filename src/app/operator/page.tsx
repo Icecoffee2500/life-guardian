@@ -1,15 +1,21 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import VitalsReadout from '@/components/experience/VitalsReadout';
-import { useSourceSnapshots } from '@/hooks/useSensors';
+import { connectLiveSource, useSourceSnapshots, type LiveDeviceKind } from '@/hooks/useSensors';
 import { OPERATOR_GUIDE } from '@/lib/dialogue/script';
 import { PERSONAS } from '@/lib/sensors/personas';
 import { hasSupabase } from '@/lib/supabase/client';
 import { listLocal } from '@/lib/storage/persist';
 import type { SessionRecord } from '@/lib/storage/record';
 import { SCENES } from '@/lib/session/scenes';
+import {
+  SessionReceiver,
+  STALE_MS,
+  type LiveSessionState,
+  type SessionCommand,
+} from '@/lib/session/channel';
 import { useSession, type SignalMode } from '@/lib/session/store';
 
 /**
@@ -23,8 +29,10 @@ import { useSession, type SignalMode } from '@/lib/session/store';
  * - 부록 B 진행자 가이드
  * - 페르소나·신호 모드 전환
  *
- * 주의: 지금은 같은 브라우저 탭 안에서만 상태가 공유된다. 두 기기로 나누려면
- * Supabase Realtime 배선이 필요하다 (환경변수가 있을 때만 켜진다).
+ * 체험 화면과는 채널로 이어져 있다. 같은 기기의 다른 창은 BroadcastChannel로,
+ * 다른 기기는 Supabase Realtime broadcast로 (환경변수가 있을 때만).
+ * 실황이 들어오면 헤더에 '실황 연결됨'이 뜨고, 그때는 이 화면의 값이
+ * 체험 화면의 것이다. 실황이 없으면 이 탭의 스토어를 그대로 보여준다.
  */
 
 const SIGNAL_MODES: { id: SignalMode; label: string; detail: string }[] = [
@@ -32,6 +40,47 @@ const SIGNAL_MODES: { id: SignalMode; label: string; detail: string }[] = [
   { id: 'auto', label: '자동', detail: '가상 참가자가 전 과정을 스스로 수행' },
   { id: 'live', label: '실기기', detail: '밴드·GSR·아이트래커 (M5)' },
 ];
+
+function LiveMetric({
+  label,
+  value,
+  unit,
+  color,
+}: {
+  label: string;
+  value: number | null;
+  unit: string;
+  color: string;
+}) {
+  return (
+    <div className="flex items-baseline gap-2">
+      <span
+        className="mb-px inline-block h-1 w-1 rounded-full"
+        style={{ background: color, boxShadow: `0 0 8px ${color}` }}
+      />
+      <span className="text-[10px] tracking-[0.14em] text-paper-mute">{label}</span>
+      <span className="tnum text-[13px] font-light text-paper-dim">{value ?? '—'}</span>
+      <span className="text-[10px] text-paper-mute">{unit}</span>
+    </div>
+  );
+}
+
+function CtlButton({
+  onClick,
+  children,
+}: {
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className="rounded-full border border-paper/15 px-4 py-2 text-[11.5px] text-paper-dim transition-colors duration-300 hover:border-paper/35 hover:text-paper"
+    >
+      {children}
+    </button>
+  );
+}
 
 function Panel({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -56,8 +105,11 @@ export default function OperatorPage() {
   const pause = useSession((s) => s.pause);
   const resume = useSession((s) => s.resume);
   const abort = useSession((s) => s.abort);
+  const advance = useSession((s) => s.advance);
+  const back = useSession((s) => s.back);
+  const reset = useSession((s) => s.reset);
 
-  const sources = useSourceSnapshots();
+  const localSources = useSourceSnapshots();
   const [recent, setRecent] = useState<SessionRecord[]>([]);
 
   useEffect(() => {
@@ -68,7 +120,55 @@ export default function OperatorPage() {
     return () => clearInterval(t);
   }, []);
 
-  const sceneDefIdx = SCENES.findIndex((s) => s.id === scene);
+  // 체험 화면의 실황. 같은 기기의 다른 창이면 BroadcastChannel로,
+  // 다른 기기면 Supabase Realtime으로 들어온다.
+  const [live, setLive] = useState<LiveSessionState | null>(null);
+  const [now, setNow] = useState(() => Date.now());
+  const rxRef = useRef<SessionReceiver | null>(null);
+  useEffect(() => {
+    const rx = new SessionReceiver();
+    rxRef.current = rx;
+    const stop = rx.start(setLive);
+    // 실황이 끊긴 것을 알아채려면 시계가 돌아야 한다
+    const t = setInterval(() => setNow(Date.now()), 1000);
+    return () => {
+      stop();
+      clearInterval(t);
+      rxRef.current = null;
+    };
+  }, []);
+
+  /**
+   * 진행자 조작은 두 곳에 동시에 건다:
+   * 이 탭의 스토어(단일 창 운영)와 채널(창·기기가 나뉜 운영).
+   * 어느 구성이든 버튼 하나로 동작해야 한다.
+   */
+  // 실기기 연결 상태 (이 창에 센서가 붙어 있을 때만 의미가 있다)
+  const [linking, setLinking] = useState<LiveDeviceKind | null>(null);
+  const [linkError, setLinkError] = useState<string | null>(null);
+  const liveHere = localSources.length > 0;
+
+  const linkDevice = useCallback(async (kind: LiveDeviceKind) => {
+    setLinkError(null);
+    setLinking(kind);
+    const res = await connectLiveSource(kind);
+    setLinking(null);
+    if (!res.ok) setLinkError(`${kind} 연결 실패: ${res.error}`);
+  }, []);
+
+  const command = useCallback((c: SessionCommand, local: () => void) => {
+    local();
+    rxRef.current?.send(c);
+  }, []);
+
+  const fresh = live !== null && now - live.at < STALE_MS;
+  // 실황이 살아 있으면 그쪽이 진실이다. 없으면 이 탭의 스토어를 쓴다(단일 창 운영).
+  const shownScene = fresh ? live.scene : scene;
+  const shownStatus = fresh ? live.status : status;
+  const shownSessionId = fresh ? live.sessionId : sessionId;
+  const sources = fresh ? live.sources : localSources;
+
+  const sceneDefIdx = SCENES.findIndex((s) => s.id === shownScene);
 
   return (
     <main className="min-h-dvh bg-ink-950 px-6 py-8">
@@ -76,15 +176,21 @@ export default function OperatorPage() {
         <header className="flex flex-wrap items-baseline justify-between gap-3">
           <div>
             <h1 className="text-[11px] tracking-[0.24em] text-paper-mute">OPERATOR</h1>
-            <p className="tnum mt-2 text-[15px] font-light text-paper">{sessionId}</p>
+            <p className="tnum mt-2 text-[15px] font-light text-paper">{shownSessionId}</p>
           </div>
           <div className="flex items-center gap-4 text-[11px] text-paper-mute">
             <span>
               {String(Math.max(1, sceneDefIdx + 1)).padStart(2, '0')} / {SCENES.length} ·{' '}
               {SCENES[Math.max(0, sceneDefIdx)]?.label}
             </span>
-            <span>{status}</span>
+            <span>{shownStatus}</span>
             <span>{mode === 'full' ? '전체' : '압축'}</span>
+            <span
+              className={fresh ? 'text-hrv' : 'text-paper-mute/60'}
+              title={fresh ? '체험 화면과 연결됨' : '체험 화면의 실황이 들어오지 않습니다'}
+            >
+              {fresh ? '실황 연결됨' : '실황 없음'}
+            </span>
             <Link href="/experience" className="underline-offset-4 hover:text-paper-dim hover:underline">
               체험 화면
             </Link>
@@ -92,7 +198,19 @@ export default function OperatorPage() {
         </header>
 
         <div className="mt-6 rounded-2xl border border-paper/8 bg-ink-900/60 px-5 py-4">
-          <VitalsReadout />
+          {fresh ? (
+            // 다른 기기의 체험 화면을 볼 때는 이 탭에 센서가 없다. 실황 값을 그대로 보여준다.
+            <div className="flex flex-wrap items-center gap-x-7 gap-y-2">
+              <LiveMetric label="HR" value={live!.hr} unit="bpm" color="var(--color-hr)" />
+              <LiveMetric label="HRV" value={live!.rmssd} unit="ms" color="var(--color-hrv)" />
+              <LiveMetric label="GSR" value={live!.gsr} unit="µS" color="var(--color-gsr)" />
+              {live!.settled && (
+                <span className="text-[11px] tracking-[0.12em] text-hrv">안정</span>
+              )}
+            </div>
+          ) : (
+            <VitalsReadout />
+          )}
         </div>
 
         <div className="mt-5 grid gap-5 lg:grid-cols-2">
@@ -101,7 +219,7 @@ export default function OperatorPage() {
               {SIGNAL_MODES.map((m) => (
                 <button
                   key={m.id}
-                  onClick={() => setSignalMode(m.id)}
+                  onClick={() => command({ kind: 'signal-mode', value: m.id }, () => setSignalMode(m.id))}
                   className={`flex w-full items-baseline gap-3 rounded-lg px-3 py-2.5 text-left transition-colors duration-300 ${
                     signalMode === m.id ? 'bg-paper/[0.07]' : 'hover:bg-paper/[0.03]'
                   }`}
@@ -125,7 +243,7 @@ export default function OperatorPage() {
               {PERSONAS.map((p) => (
                 <button
                   key={p.id}
-                  onClick={() => setPersona(p.id)}
+                  onClick={() => command({ kind: 'persona', value: p.id }, () => setPersona(p.id))}
                   className={`block w-full rounded-lg px-3 py-2.5 text-left transition-colors duration-300 ${
                     personaId === p.id ? 'bg-paper/[0.07]' : 'hover:bg-paper/[0.03]'
                   }`}
@@ -149,38 +267,70 @@ export default function OperatorPage() {
                 연결된 소스가 없습니다. 체험 화면을 먼저 여세요.
               </p>
             ) : (
-              <ul className="space-y-2">
+              <ul className="space-y-2.5">
                 {sources.map((s) => (
                   <li key={s.kind} className="flex items-baseline justify-between gap-3">
-                    <span className="text-[12.5px] text-paper-dim">{s.label}</span>
-                    <span className="text-[11px] text-paper-mute">
-                      {s.status} · {s.quality}
-                      {s.error ? ` · ${s.error}` : ''}
-                    </span>
+                    <div className="min-w-0">
+                      <span className="text-[12.5px] text-paper-dim">{s.label}</span>
+                      <span className="ml-2 text-[11px] text-paper-mute">
+                        {s.status} · {s.quality}
+                      </span>
+                      {s.error && (
+                        <span className="mt-0.5 block text-[10.5px] text-warn">{s.error}</span>
+                      )}
+                    </div>
+                    {/*
+                      실기기 연결은 반드시 이 버튼(=사용자 제스처)에서 시작해야 한다.
+                      requestDevice/requestPort는 제스처 없이는 거부되고,
+                      셋을 한꺼번에 부르면 선택 다이얼로그가 겹쳐 두 번째부터 실패한다.
+                      진행자는 이 화면에서 기기를 하나씩 붙인다.
+                    */}
+                    {s.mode !== 'live' && (
+                      <button
+                        onClick={() => linkDevice(s.kind as LiveDeviceKind)}
+                        disabled={linking === s.kind || !liveHere}
+                        title={
+                          liveHere
+                            ? '이 기기를 실기기로 교체합니다'
+                            : '실기기 연결은 체험 화면이 열려 있는 창에서 눌러야 합니다'
+                        }
+                        className="shrink-0 rounded-full border border-paper/15 px-3 py-1.5 text-[11px] text-paper-dim transition-colors duration-300 hover:border-paper/35 hover:text-paper disabled:cursor-not-allowed disabled:opacity-35"
+                      >
+                        {linking === s.kind ? '연결 중' : '실기기 연결'}
+                      </button>
+                    )}
                   </li>
                 ))}
               </ul>
+            )}
+            {linkError && <p className="mt-3 text-[10.5px] leading-relaxed text-warn">{linkError}</p>}
+            {!liveHere && sources.length > 0 && (
+              <p className="mt-3 text-[10.5px] leading-relaxed text-paper-mute/70">
+                실기기 연결은 센서가 붙어 있는 창에서만 됩니다. 체험 화면을 이 창에서 열거나,
+                체험 화면 쪽에서 연결하세요.
+              </p>
             )}
           </Panel>
 
           <Panel title="진행 제어">
             <div className="flex flex-wrap gap-2">
-              {[
-                { label: '일시정지', fn: pause },
-                { label: '재개', fn: resume },
-                { label: '중단', fn: () => abort('진행자가 세션을 중단했습니다.') },
-              ].map((b) => (
-                <button
-                  key={b.label}
-                  onClick={b.fn}
-                  className="rounded-full border border-paper/15 px-4 py-2 text-[11.5px] text-paper-dim transition-colors duration-300 hover:border-paper/35 hover:text-paper"
-                >
-                  {b.label}
-                </button>
-              ))}
+              <CtlButton onClick={() => command({ kind: 'pause' }, pause)}>일시정지</CtlButton>
+              <CtlButton onClick={() => command({ kind: 'resume' }, resume)}>재개</CtlButton>
+              <CtlButton
+                onClick={() =>
+                  command({ kind: 'abort' }, () => abort('진행자가 세션을 중단했습니다.'))
+                }
+              >
+                중단
+              </CtlButton>
+            </div>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <CtlButton onClick={() => command({ kind: 'back' }, back)}>← 이전 씬</CtlButton>
+              <CtlButton onClick={() => command({ kind: 'advance' }, advance)}>다음 씬 →</CtlButton>
+              <CtlButton onClick={() => command({ kind: 'reset' }, reset)}>처음으로</CtlButton>
             </div>
             <p className="mt-4 text-[10.5px] leading-relaxed text-paper-mute/70">
-              씬 이동은 체험 화면에서 ← → 키로 합니다.
+              체험 화면에서 ← → 키로도 이동합니다.
             </p>
           </Panel>
         </div>

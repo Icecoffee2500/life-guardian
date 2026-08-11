@@ -1,5 +1,12 @@
 import { experienceBus, type ExperienceBus } from './bus';
-import type { BioSample, BioSource, GazeSample, GazeSource, SourceSnapshot } from './types';
+import type {
+  BioSample,
+  BioSource,
+  GazeSample,
+  GazeSource,
+  SourceKind,
+  SourceSnapshot,
+} from './types';
 import { sessionRecorder, type SessionRecorder } from '@/lib/session/recorder';
 import { mean, movingAverage, rmssd, sd, slice, slope } from '@/lib/features/signal';
 
@@ -59,7 +66,8 @@ export const SETTLE_SMOOTH_MS = 5000;
 export class SensorHub {
   private bio: BioSource[] = [];
   private gaze: GazeSource | null = null;
-  private unsubs: (() => void)[] = [];
+  /** 소스별 구독 해제 함수. 소스 하나만 교체할 때 그것만 떼어내려면 연결이 필요하다. */
+  private unsubs = new Map<BioSource | GazeSource, (() => void)[]>();
   private listeners = new Set<(m: LiveMetrics) => void>();
   private snapshotListeners = new Set<(s: SourceSnapshot[]) => void>();
 
@@ -76,22 +84,57 @@ export class SensorHub {
 
   attachBio(source: BioSource): void {
     this.bio.push(source);
-    this.unsubs.push(source.subscribe((s) => this.onBio(s)));
-    this.unsubs.push(source.onStatusChange(() => this.emitSnapshots()));
+    this.unsubs.set(source, [
+      source.subscribe((s) => this.onBio(s)),
+      source.onStatusChange(() => this.emitSnapshots()),
+    ]);
     this.emitSnapshots();
   }
 
   attachGaze(source: GazeSource): void {
     this.gaze = source;
-    this.unsubs.push(source.subscribe((s) => this.onGaze(s)));
-    this.unsubs.push(source.onStatusChange(() => this.emitSnapshots()));
+    this.unsubs.set(source, [
+      source.subscribe((s) => this.onGaze(s)),
+      source.onStatusChange(() => this.emitSnapshots()),
+    ]);
     this.emitSnapshots();
+  }
+
+  private unsubscribeFor(source: BioSource | GazeSource): void {
+    for (const u of this.unsubs.get(source) ?? []) u();
+    this.unsubs.delete(source);
+  }
+
+  /**
+   * 같은 종류의 소스를 교체한다 (시뮬레이터 → 실기기).
+   *
+   * 세션 도중에 갈아끼워도 기록은 이어진다. 이미 쌓인 신호를 버리지 않는 게 중요하다 —
+   * 진행자가 밴드를 뒤늦게 연결했다고 베이스라인을 다시 잡을 수는 없다.
+   */
+  replaceBio(kind: SourceKind, next: BioSource): void {
+    const i = this.bio.findIndex((s) => s.kind === kind);
+    if (i !== -1) {
+      const old = this.bio[i];
+      this.unsubscribeFor(old);
+      old.disconnect();
+      this.bio.splice(i, 1);
+    }
+    this.attachBio(next);
+  }
+
+  replaceGaze(next: GazeSource): void {
+    if (this.gaze) {
+      this.unsubscribeFor(this.gaze);
+      this.gaze.disconnect();
+      this.gaze = null;
+    }
+    this.attachGaze(next);
   }
 
   /** 소스를 전부 떼고 버퍼를 비운다 */
   detachAll(): void {
-    for (const u of this.unsubs) u();
-    this.unsubs = [];
+    for (const list of this.unsubs.values()) for (const u of list) u();
+    this.unsubs.clear();
     for (const s of this.bio) s.disconnect();
     this.gaze?.disconnect();
     this.bio = [];

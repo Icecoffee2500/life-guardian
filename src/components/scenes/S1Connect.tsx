@@ -1,10 +1,12 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { motion } from 'motion/react';
 import SceneShell, { SceneCaption, SceneTitle } from './SceneShell';
 import SignalCanvas from '@/components/SignalCanvas';
-import { useSourceSnapshots } from '@/hooks/useSensors';
+import Button from '@/components/ui/Button';
+import { connectLiveSource, useSourceSnapshots, type LiveDeviceKind } from '@/hooks/useSensors';
+import { useSession } from '@/lib/session/store';
 import type { SourceSnapshot } from '@/lib/sensors/types';
 
 const KIND_META: Record<string, { title: string; detail: string; color: string }> = {
@@ -36,7 +38,18 @@ function StatusDot({ s }: { s: SourceSnapshot }) {
   );
 }
 
-function SourceRow({ s, index }: { s: SourceSnapshot; index: number }) {
+function SourceRow({
+  s,
+  index,
+  onLink,
+  linking,
+}: {
+  s: SourceSnapshot;
+  index: number;
+  /** 실기기 모드에서만 넘어온다 */
+  onLink?: (kind: LiveDeviceKind) => void;
+  linking?: boolean;
+}) {
   const meta = KIND_META[s.kind] ?? { title: s.kind, detail: '', color: 'var(--color-paper)' };
   const live = s.status === 'streaming';
   return (
@@ -73,15 +86,30 @@ function SourceRow({ s, index }: { s: SourceSnapshot; index: number }) {
         )}
       </div>
 
-      <span className="w-12 shrink-0 text-right text-[10px] tracking-[0.1em] text-paper-mute">
-        {s.status === 'streaming'
-          ? '수신'
-          : s.status === 'connecting'
-            ? '연결'
-            : s.status === 'error'
-              ? '실패'
-              : '대기'}
-      </span>
+      {onLink && s.mode !== 'live' ? (
+        /*
+          실기기 연결은 반드시 이 버튼(=사용자 제스처)에서 시작해야 한다.
+          Web Bluetooth·Web Serial의 선택 다이얼로그는 제스처 없이는 열리지 않는다.
+          연결 전까지는 시뮬레이터가 붙어 있어 체험이 멈추지 않는다.
+        */
+        <button
+          onClick={() => onLink(s.kind as LiveDeviceKind)}
+          disabled={linking}
+          className="w-20 shrink-0 rounded-full border border-paper/15 px-2 py-1.5 text-[10px] tracking-[0.06em] text-paper-dim transition-colors duration-300 hover:border-paper/35 hover:text-paper disabled:opacity-35"
+        >
+          {linking ? '연결 중' : '기기 연결'}
+        </button>
+      ) : (
+        <span className="w-12 shrink-0 text-right text-[10px] tracking-[0.1em] text-paper-mute">
+          {s.status === 'streaming'
+            ? '수신'
+            : s.status === 'connecting'
+              ? '연결'
+              : s.status === 'error'
+                ? '실패'
+                : '대기'}
+        </span>
+      )}
     </motion.div>
   );
 }
@@ -94,14 +122,28 @@ function SourceRow({ s, index }: { s: SourceSnapshot; index: number }) {
  */
 export default function S1Connect({ onDone }: { onDone: () => void }) {
   const sources = useSourceSnapshots();
+  const signalMode = useSession((s) => s.signalMode);
+  const live = signalMode === 'live';
   const ready = sources.length > 0 && sources.every((s) => s.status === 'streaming');
   const heroIn = sources.some((s) => s.kind === 'band' && s.status === 'streaming');
 
+  const [linking, setLinking] = useState<LiveDeviceKind | null>(null);
+  const [linkError, setLinkError] = useState<string | null>(null);
+
+  const onLink = useCallback(async (kind: LiveDeviceKind) => {
+    setLinkError(null);
+    setLinking(kind);
+    const res = await connectLiveSource(kind);
+    setLinking(null);
+    if (!res.ok) setLinkError(`${kind} 연결 실패 — 시뮬레이터로 계속합니다`);
+  }, []);
+
   useEffect(() => {
-    if (!ready) return;
+    // 실기기 모드에서는 진행자가 기기를 붙일 시간이 필요하다. 자동으로 넘기지 않는다.
+    if (!ready || live) return;
     const t = setTimeout(onDone, 2600);
     return () => clearTimeout(t);
-  }, [ready, onDone]);
+  }, [ready, live, onDone]);
 
   return (
     <SceneShell className="px-6">
@@ -123,17 +165,36 @@ export default function S1Connect({ onDone }: { onDone: () => void }) {
 
         <div className="mt-9 divide-y divide-paper/8 overflow-hidden rounded-2xl border border-paper/8 bg-ink-900/70">
           {sources.map((s, i) => (
-            <SourceRow key={s.kind} s={s} index={i} />
+            <SourceRow
+              key={s.kind}
+              s={s}
+              index={i}
+              onLink={live ? (k) => void onLink(k) : undefined}
+              linking={linking === s.kind}
+            />
           ))}
         </div>
 
-        <motion.p
-          className="mt-8 text-center text-[11px] tracking-[0.14em] text-paper-mute"
-          animate={{ opacity: ready ? 1 : 0.3 }}
-          transition={{ duration: 0.8 }}
-        >
-          {ready ? '연결되었습니다' : '연결하는 중입니다'}
-        </motion.p>
+        {linkError && (
+          <p className="mt-4 text-center text-[11px] text-warn">{linkError}</p>
+        )}
+
+        {live ? (
+          <div className="mt-8 flex flex-col items-center gap-4">
+            <p className="text-center text-[11px] leading-relaxed text-paper-mute">
+              기기를 하나씩 연결하세요. 연결하지 않은 채널은 시뮬레이터로 진행됩니다.
+            </p>
+            <Button onClick={onDone}>이대로 시작하기</Button>
+          </div>
+        ) : (
+          <motion.p
+            className="mt-8 text-center text-[11px] tracking-[0.14em] text-paper-mute"
+            animate={{ opacity: ready ? 1 : 0.3 }}
+            transition={{ duration: 0.8 }}
+          >
+            {ready ? '연결되었습니다' : '연결하는 중입니다'}
+          </motion.p>
+        )}
       </div>
     </SceneShell>
   );

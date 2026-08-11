@@ -57,3 +57,84 @@ alter publication supabase_realtime add table public.sessions;
 --   input, '{dialogue}',
 --   (select jsonb_agg(d - 'transcript') from jsonb_array_elements(input->'dialogue') d)
 -- );
+
+-- ── events ───────────────────────────────────────────────────────
+-- 세션 중간에 찍히는 마커. "몇 ms 시점에 무슨 일이 있었나"를 남겨서
+-- 사후 분석(자극 반응 구간 잘라보기 등)과 진행자 뷰(실시간 진행 상황 표시)에 쓴다.
+create table if not exists public.events (
+  id          bigserial   primary key,
+  session_id  text        not null references public.sessions(session_id) on delete cascade,
+  t_ms        integer     not null,
+  -- 예: 'scene-enter', 'stimulus-onset', 'question-onset'
+  type        text        not null,
+  ref         text,
+  intensity   real,
+  created_at  timestamptz not null default now()
+);
+
+-- 세션 하나의 이벤트를 시간순으로 훑어보는 조회가 대부분이라 복합 인덱스로 묶는다.
+create index if not exists events_session_id_t_ms_idx on public.events (session_id, t_ms);
+
+alter table public.events enable row level security;
+
+-- sessions와 동일한 이유로 anon 삽입·조회만 허용한다 (수정·삭제는 막는다).
+drop policy if exists "anon can insert" on public.events;
+create policy "anon can insert" on public.events
+  for insert to anon with check (true);
+
+drop policy if exists "anon can read" on public.events;
+create policy "anon can read" on public.events
+  for select to anon using (true);
+
+-- Realtime — publication에 같은 테이블을 두 번 추가하면 에러가 나므로,
+-- 이미 등록돼 있는지 확인하고 없을 때만 추가한다 (파일 재실행 안전성).
+do $$
+begin
+  if not exists (
+    select 1 from pg_publication_tables
+    where pubname = 'supabase_realtime'
+      and schemaname = 'public'
+      and tablename = 'events'
+  ) then
+    alter publication supabase_realtime add table public.events;
+  end if;
+end $$;
+
+-- ── receipts ─────────────────────────────────────────────────────
+-- 기획안 부록 C에는 'receipts' 테이블로 나오지만, 실제로는 영수증을
+-- sessions.receipt에 jsonb로 그대로 저장한다. 테이블을 따로 두면
+-- 두 군데에 같은 데이터가 생겨서 언젠가 내용이 어긋난다 — 그래서
+-- 테이블이 아니라 sessions를 가리키는 뷰로만 이름을 맞춰 둔다.
+create or replace view public.receipts as
+  select session_id, created_at, nickname, receipt, fallback
+  from public.sessions;
+
+-- ── signal_chunks (비활성) ──────────────────────────────────────
+-- 원본 생체신호(심박·GSR·시선 raw)는 업로드하지 않기로 했다. 이유:
+--   1) 10분 x 25Hz x 3채널이면 1인당 수만 샘플 — 무료 티어 용량을 금방 채운다.
+--   2) 원본 생체신호는 이 프로젝트에서 가장 민감한 개인정보인데,
+--      지금 앱 어디서도 원본이 필요하지 않다. 영수증은 180포인트로
+--      다운샘플된 파형(sessions.hr_trace)만 있으면 충분하다.
+-- 나중에 연구 목적으로 원본 신호를 아카이브하고 싶어지면, 아래를 주석 해제해서 쓰면 된다.
+--
+-- create table if not exists public.signal_chunks (
+--   id          bigserial   primary key,
+--   session_id  text        not null references public.sessions(session_id) on delete cascade,
+--   channel     text        not null, -- 'hr' | 'gsr' | 'gaze'
+--   t_start_ms  integer     not null,
+--   sample_hz   real        not null,
+--   samples     real[]      not null,
+--   created_at  timestamptz not null default now()
+-- );
+--
+-- create index if not exists signal_chunks_session_id_idx on public.signal_chunks (session_id);
+--
+-- alter table public.signal_chunks enable row level security;
+--
+-- drop policy if exists "anon can insert" on public.signal_chunks;
+-- create policy "anon can insert" on public.signal_chunks
+--   for insert to anon with check (true);
+--
+-- drop policy if exists "anon can read" on public.signal_chunks;
+-- create policy "anon can read" on public.signal_chunks
+--   for select to anon using (true);

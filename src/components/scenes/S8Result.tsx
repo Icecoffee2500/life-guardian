@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { motion } from 'motion/react';
 import SceneShell from './SceneShell';
@@ -19,12 +20,55 @@ import { useSession } from '@/lib/session/store';
 
 const REVEAL = { duration: 0.9, ease: [0.22, 0.61, 0.36, 1] as const };
 
+/** 글자당 타이핑 간격(ms) — 읽히는 속도보다 아주 조금 느리게 */
+const TYPE_MS = 90;
+
+/**
+ * 페르소나명 타이핑 연출 (구현계획 3.2.1).
+ *
+ * 결과를 한 번에 쏟으면 텍스트 덤프가 된다. 이름은 이 체험이 참가자에게
+ * 돌려주는 첫 마디라서, 한 글자씩 나오는 그 몇 초가 의미를 만든다.
+ * 모션 민감 사용자에게는 타이핑 없이 즉시 보여준다.
+ */
+function useTypewriter(text: string): { shown: string; done: boolean } {
+  const [state, setState] = useState({ key: text, n: 0 });
+
+  // 텍스트가 바뀌면 처음부터. 렌더 중 상태 조정 패턴.
+  if (state.key !== text) setState({ key: text, n: 0 });
+
+  useEffect(() => {
+    const reduced =
+      typeof window !== 'undefined' &&
+      window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+
+    if (reduced) {
+      const t = setTimeout(
+        () => setState((s) => (s.key === text ? { key: text, n: text.length } : s)),
+        0,
+      );
+      return () => clearTimeout(t);
+    }
+
+    const timer = setInterval(() => {
+      setState((s) => {
+        if (s.key !== text || s.n >= text.length) return s;
+        return { key: text, n: s.n + 1 };
+      });
+    }, TYPE_MS);
+    return () => clearInterval(timer);
+  }, [text]);
+
+  const n = state.key === text ? state.n : 0;
+  return { shown: text.slice(0, n), done: n >= text.length };
+}
+
 export default function S8Result() {
   const receipt = useSession((s) => s.receipt);
   const fallback = useSession((s) => s.receiptFallback);
   const sessionId = useSession((s) => s.sessionId);
   const nickname = useSession((s) => s.nickname);
   const reset = useSession((s) => s.reset);
+  const typed = useTypewriter(receipt?.persona_name ?? '');
 
   if (!receipt) {
     return (
@@ -56,12 +100,26 @@ export default function S8Result() {
           <h1
             className="scene-title mt-5 text-[clamp(1.9rem,5vw,3rem)]"
             style={{ color: 'var(--color-paper)' }}
+            aria-label={receipt.persona_name}
           >
-            {receipt.persona_name}
+            <span aria-hidden>{typed.shown}</span>
+            {/* 커서는 타이핑이 끝나면 사라진다 — 계속 깜빡이면 입력창처럼 보인다 */}
+            {!typed.done && (
+              <span
+                aria-hidden
+                className="ml-1 inline-block h-[0.9em] w-[2px] translate-y-[0.06em] bg-paper/70 align-middle"
+                style={{ animation: 'caret-blink 1s steps(1,end) infinite' }}
+              />
+            )}
           </h1>
-          <p className="mt-4 text-[clamp(0.95rem,2vw,1.15rem)] font-light text-brand">
+          <motion.p
+            className="mt-4 text-[clamp(0.95rem,2vw,1.15rem)] font-light text-brand"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: typed.done ? 1 : 0 }}
+            transition={{ duration: 0.8, ease: [0.22, 0.61, 0.36, 1] }}
+          >
             {receipt.one_liner}
-          </p>
+          </motion.p>
         </motion.div>
 
         {/* 심박 한 줄 — 이 결과가 몸에서 나왔다는 표시 */}

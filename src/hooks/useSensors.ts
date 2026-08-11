@@ -12,29 +12,38 @@ import { MouseGazeSource } from '@/lib/sensors/mouse-gaze';
 import { BleHeartRateSource } from '@/lib/sensors/ble-heart-rate';
 import { SerialGsrSource } from '@/lib/sensors/serial-gsr';
 import { WebGazerSource } from '@/lib/sensors/webgazer';
-import type { BioSource, GazeSource, SourceSnapshot } from '@/lib/sensors/types';
+import type { BioSource, SourceSnapshot } from '@/lib/sensors/types';
 import type { SignalMode } from '@/lib/session/store';
 import type { PersonaId } from '@/lib/sensors/personas';
 
+export type LiveDeviceKind = 'band' | 'gsr' | 'gaze';
+
 /**
- * 실기기 연결을 시도하고, 실패하면 시뮬레이터로 갈아끼운다.
+ * 기기 하나를 실기기로 교체한다. **반드시 클릭 핸들러 안에서 호출한다.**
  *
- * 이 함수가 이 프로젝트의 안전장치다. 밴드 배터리가 없든, 웹캠 권한을 거부당하든,
- * 아두이노 포트를 시리얼 모니터가 물고 있든 — 체험은 그냥 계속된다.
- * 진행자는 /operator의 소스 목록에서 무엇이 대체되었는지 볼 수 있다.
+ * requestDevice/requestPort는 사용자 제스처를 요구하므로, 이 함수가 await를 만나기
+ * 전에 브라우저 선택 다이얼로그가 떠야 한다. 그래서 connect()를 가장 먼저 부른다.
+ *
+ * 실패하면 아무것도 바꾸지 않는다 — 붙어 있던 시뮬레이터가 그대로 남아
+ * 체험이 끊기지 않는다. 밴드 배터리가 없든, 웹캠 권한을 거부당하든,
+ * 아두이노 포트를 시리얼 모니터가 물고 있든 마찬가지다.
  */
-async function connectOrFallback<T extends BioSource | GazeSource>(
-  live: () => T,
-  fallback: () => T,
-): Promise<T> {
+export async function connectLiveSource(kind: LiveDeviceKind): Promise<
+  { ok: true } | { ok: false; error: string }
+> {
   try {
-    const source = live();
-    await source.connect();
-    return source;
-  } catch {
-    const sim = fallback();
-    await sim.connect();
-    return sim;
+    if (kind === 'gaze') {
+      const src = new WebGazerSource();
+      await src.connect();
+      sensorHub.replaceGaze(src);
+    } else {
+      const src: BioSource = kind === 'band' ? new BleHeartRateSource() : new SerialGsrSource();
+      await src.connect();
+      sensorHub.replaceBio(kind, src);
+    }
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : '연결 실패' };
   }
 }
 
@@ -47,37 +56,29 @@ async function connectOrFallback<T extends BioSource | GazeSource>(
 export function useSensorSetup(signalMode: SignalMode, personaId: PersonaId, enabled: boolean) {
   useEffect(() => {
     if (!enabled) return;
-    let cancelled = false;
 
     simulationRuntime.setPersona(personaId);
 
     if (signalMode === 'live') {
-      // 실기기는 붙일 소스가 무엇이 될지 연결해 봐야 안다(실패하면 시뮬레이터로 대체).
-      // 그래서 연결이 끝난 뒤에 붙인다.
-      void (async () => {
-        const [band, gsr, gaze] = await Promise.all([
-          connectOrFallback<BioSource>(
-            () => new BleHeartRateSource(),
-            () => new SimulatedBandSource(),
-          ),
-          connectOrFallback<BioSource>(
-            () => new SerialGsrSource(),
-            () => new SimulatedGsrSource(),
-          ),
-          connectOrFallback<GazeSource>(() => new WebGazerSource(), () => new MouseGazeSource()),
-        ]);
-
-        // 연결이 끝나기 전에 씬을 벗어났으면 즉시 정리한다
-        if (cancelled) {
-          band.disconnect();
-          gsr.disconnect();
-          gaze.disconnect();
-          return;
-        }
-        sensorHub.attachBio(band);
-        sensorHub.attachBio(gsr);
-        sensorHub.attachGaze(gaze);
-      })();
+      /*
+       * 실기기는 여기서 자동 연결하지 않는다.
+       *
+       * Web Bluetooth의 requestDevice와 Web Serial의 requestPort는 **사용자 제스처
+       * 안에서만** 호출할 수 있고, 각각 브라우저 선택 다이얼로그를 띄운다.
+       * 이펙트에서 세 개를 한꺼번에 부르면 (a) 제스처가 이미 소모돼 있고
+       * (b) 다이얼로그가 서로 겹쳐서 두 번째부터는 그냥 실패한다.
+       *
+       * 그래서 실기기 모드에서는 우선 시뮬레이터로 붙여 체험을 살려 두고,
+       * 진행자가 /operator에서 기기별 '연결' 버튼을 눌러 하나씩 교체한다.
+       * connectLiveSource()가 그 교체를 맡는다.
+       */
+      const band = new SimulatedBandSource();
+      const gsr = new SimulatedGsrSource();
+      const gaze = new MouseGazeSource();
+      sensorHub.attachBio(band);
+      sensorHub.attachBio(gsr);
+      sensorHub.attachGaze(gaze);
+      void Promise.all([band.connect(), gsr.connect(), gaze.connect()]);
     } else {
       // 시뮬레이션 경로는 먼저 붙이고 나중에 연결한다.
       // S1 연결 씬이 '대기 → 연결 → 수신'으로 채워지는 리듬이 여기서 나온다.
@@ -93,10 +94,7 @@ export function useSensorSetup(signalMode: SignalMode, personaId: PersonaId, ena
       void Promise.all([band.connect(), gsr.connect(), gaze.connect()]);
     }
 
-    return () => {
-      cancelled = true;
-      sensorHub.detachAll();
-    };
+    return () => sensorHub.detachAll();
   }, [enabled, signalMode, personaId]);
 }
 
