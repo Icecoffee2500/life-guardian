@@ -65,39 +65,87 @@ async function fetchTo(rel) {
   process.stdout.write(`  + ${rel} (${(buf.length / 1e6).toFixed(1)}MB)\n`);
 }
 
-/** onnxruntime-web의 wasm 바이너리도 우리 도메인에서 준다 (기본값은 CDN이다) */
+/**
+ * onnxruntime-web의 wasm 바이너리도 우리 도메인에서 준다 (기본값은 CDN이다).
+ *
+ * **바이너리는 @huggingface/transformers/dist가 아니라 onnxruntime-web/dist에 있다.**
+ * transformers 쪽에는 로더 .mjs만 들어 있어서, 거기만 복사해 두고
+ * wasmPaths를 우리 경로로 돌리면 .wasm을 찾지 못해 런타임이 아예 초기화되지 않는다.
+ * (실제로 그렇게 짰다가 여기서 잡았다.)
+ */
+const WASM_SRC_DIRS = [
+  'node_modules/onnxruntime-web/dist',
+  'node_modules/@huggingface/transformers/dist',
+];
+
 async function copyWasm() {
-  const src = 'node_modules/@huggingface/transformers/dist';
-  let files;
-  try {
-    files = await readdir(src);
-  } catch {
-    console.log('  ! transformers dist를 찾지 못했습니다 — wasm은 건너뜁니다');
-    return;
-  }
   await mkdir(WASM_OUT, { recursive: true });
   let n = 0;
-  for (const f of files) {
-    if (!f.endsWith('.wasm') && !f.endsWith('.mjs')) continue;
-    const to = join(WASM_OUT, f);
-    if (await exists(to)) continue;
-    await copyFile(join(src, f), to);
-    n += 1;
+  let wasm = 0;
+
+  for (const src of WASM_SRC_DIRS) {
+    let files;
+    try {
+      files = await readdir(src);
+    } catch {
+      continue;
+    }
+    for (const f of files) {
+      // 로더(.mjs)와 바이너리(.wasm)가 같은 폴더에 나란히 있어야 서로를 찾는다
+      if (!f.endsWith('.wasm') && !f.endsWith('.mjs')) continue;
+      /*
+        onnxruntime-web/dist를 통째로 복사하면 92MB가 된다.
+        실제로 쓰는 건 transformers.js가 고르는 두 갈래뿐이다
+        (backends/onnx.js의 기본 wasmPaths와 같은 선택):
+          asyncify — Safari가 아닌 모든 브라우저
+          (접미사 없음) — Safari
+        jsep·jspi 변형과 ort.* 번들(라이브러리 본체, npm으로 이미 들어온다)은 뺀다.
+        여기 목록이 whisper.worker.ts의 wasmPaths와 어긋나면 런타임이 404를 만난다.
+      */
+      if (!/^ort-wasm-simd-threaded(\.asyncify)?\.(wasm|mjs)$/.test(f)) continue;
+      const to = join(WASM_OUT, f);
+      // 이미 있으면 다시 복사하지 않되, **집계에는 넣는다.**
+      // 복사한 개수만 세면 두 번째 빌드부터 0이 되어 멀쩡한 상태를 실패로 보고한다.
+      if (!(await exists(to))) {
+        await copyFile(join(src, f), to);
+        n += 1;
+      }
+      if (f.endsWith('.wasm')) wasm += 1;
+    }
   }
-  console.log(`  + wasm/mjs ${n}개`);
+
+  if (wasm === 0) {
+    // 여기서 조용히 넘어가면 브라우저에서만 터진다. 빌드 로그에 남긴다.
+    console.log('  ! .wasm 바이너리를 찾지 못했습니다 — 음성 인식이 동작하지 않습니다');
+    return;
+  }
+  console.log(`  = wasm ${wasm}개 준비됨 (이번에 복사 ${n}개)`);
 }
 
 console.log(`whisper 벤더링: ${REPO}`);
+
+/*
+  둘은 서로 독립이다.
+  wasm 복사는 node_modules에서 하는 로컬 작업이고, 모델 내려받기는 네트워크를 탄다.
+  한 try 안에 묶어 두면 모델을 못 받았을 때 wasm까지 통째로 건너뛴다 —
+  네트워크가 되는 환경에서 런타임 폴백(허깅페이스 직접 로드)으로 살아날 수 있었던
+  경우까지 같이 죽는다.
+*/
+try {
+  await copyWasm();
+} catch (e) {
+  console.log(`! wasm 복사 실패 (${e.message})`);
+}
+
 try {
   for (const f of CONFIG_FILES) await fetchTo(f);
   for (const f of ONNX_FILES) await fetchTo(f);
-  await copyWasm();
   console.log('완료 —', OUT);
 } catch (e) {
   /*
     받지 못해도 빌드를 멈추지 않는다.
     음성 인식은 이 체험의 부가 기능이고, 없으면 타이핑으로 진행된다.
-    "데모가 외부 의존에 인질로 잡히면 안 된다"는 원칙이 여기에도 그대로 적용된다.
+    런타임은 로컬에서 모델을 못 찾으면 허깅페이스로 폴백한다.
   */
-  console.log(`! 벤더링 실패 (${e.message}) — 음성 인식 없이 진행됩니다`);
+  console.log(`! 모델 내려받기 실패 (${e.message}) — 런타임에서 원격으로 시도합니다`);
 }
