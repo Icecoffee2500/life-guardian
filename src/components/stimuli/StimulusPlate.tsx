@@ -26,7 +26,7 @@ export default function StimulusPlate({
 
   return (
     <motion.figure
-      className={`relative flex min-h-0 flex-col overflow-hidden rounded-[14px] border border-paper/8 bg-ink-850 ${className}`}
+      className={`relative flex min-h-0 flex-col overflow-hidden rounded-[4px] border border-line bg-surface-sunken ${className}`}
       animate={{ opacity: active ? 1 : 0.14 }}
       transition={{ duration: 0.55, ease: [0.22, 0.61, 0.36, 1] }}
     >
@@ -45,8 +45,11 @@ export default function StimulusPlate({
                 key={i}
                 d={s.d}
                 fill="none"
-                stroke="#ece9e3"
-                strokeOpacity={s.alpha}
+                /* 밝은 판 위에서는 잉크로 그린다. 예전의 흰 선은 배경에 그대로 묻혔다. */
+                stroke="var(--color-ink)"
+                /* 밝은 판 위의 잉크는 어두운 판 위의 흰 선보다 흐려 보인다.
+                   두 판에 같은 배율을 적용하므로 좌우 편향은 생기지 않는다. */
+                strokeOpacity={Math.min(1, s.alpha * 1.7)}
                 strokeWidth={s.width}
                 strokeLinecap="round"
               />
@@ -55,7 +58,7 @@ export default function StimulusPlate({
         )}
       </div>
 
-      <figcaption className="shrink-0 border-t border-paper/6 px-4 py-3 text-center text-[12px] font-light leading-snug text-paper-dim">
+      <figcaption className="shrink-0 border-t border-line bg-surface-raised px-4 py-3 text-center text-[14px] font-semibold leading-snug text-ink-2">
         {image.label}
       </figcaption>
     </motion.figure>

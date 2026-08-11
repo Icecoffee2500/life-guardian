@@ -36,7 +36,9 @@ export const GAZE_TIMING = {
 /** 그림 세션 타이밍 (기획안 5장: 나무 90초, 10년 뒤 스케치 30초) */
 export const DRAW_TIMING = {
   full: { treeSec: 90, futureSec: 30 },
-  compact: { treeSec: 20, futureSec: 10 },
+  // 압축 모드의 6초를 S7 예측 퀴즈로 옮겼다.
+  // 3분 안에서 기억에 남는 건 그림을 더 오래 그린 것보다 자기 기록을 맞혀본 쪽이다.
+  compact: { treeSec: 16, futureSec: 8 },
 } as const;
 
 export function pairsFor(mode: ExperienceMode) {
@@ -134,7 +136,9 @@ export const SCENES: SceneDef[] = [
     label: '리플레이',
     title: '오늘 당신의 몸이 지나온 길',
     caption: '해석이 완성되는 동안 기록을 함께 봅니다.',
-    durationSec: (m) => (m === 'full' ? 26 : 12),
+    // 예측 퀴즈(질문 → 공개 → 타임라인) 3막을 담아야 해서 넉넉히 잡는다.
+    // 해석 호출이 20~30초 걸리므로 이 길이가 곧 로딩 마스킹이기도 하다.
+    durationSec: (m) => (m === 'full' ? 40 : 18),
   },
   {
     id: 'S8',

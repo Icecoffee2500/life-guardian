@@ -59,6 +59,16 @@ export interface SessionState {
   receipt: BioReceipt | null;
   /** 해석이 규칙 기반 폴백으로 만들어졌는가 */
   receiptFallback: boolean;
+  /**
+   * 폴백으로 내려간 이유. 진행자 화면에서만 쓴다.
+   *
+   * 이게 없으면 "왜 규칙 기반이지?"를 추측으로만 답하게 된다 —
+   * 키를 넣었는데도 폴백이 나오는 상황(스코프 누락, 재배포 안 함, 호출 오류)을
+   * 부스 현장에서 구분할 방법이 있어야 한다.
+   */
+  receiptReason: string | null;
+  /** 심장 소리를 켤 것인가 */
+  soundOn: boolean;
   /** 씬 완료 신호를 세는 카운터 — 하위 시퀀스가 끝났음을 알린다 */
   sceneNonce: number;
 
@@ -71,7 +81,8 @@ export interface SessionState {
   setConsented: (v: boolean) => void;
   setAlert: (v: string | null) => void;
   setLlmInput: (v: LlmInput | null) => void;
-  setReceipt: (v: BioReceipt | null, fallback?: boolean) => void;
+  setReceipt: (v: BioReceipt | null, fallback?: boolean, reason?: string | null) => void;
+  setSoundOn: (v: boolean) => void;
 
   begin: () => void;
   goTo: (scene: SceneId) => void;
@@ -115,6 +126,8 @@ export const useSession = create<SessionState>((set, get) => ({
   llmInput: null,
   receipt: null,
   receiptFallback: false,
+  receiptReason: null,
+  soundOn: true,
   sceneNonce: 0,
 
   setNickname: (v) => set({ nickname: v }),
@@ -126,7 +139,9 @@ export const useSession = create<SessionState>((set, get) => ({
   setConsented: (v) => set({ consented: v }),
   setAlert: (v) => set({ alert: v }),
   setLlmInput: (v) => set({ llmInput: v }),
-  setReceipt: (v, fallback = false) => set({ receipt: v, receiptFallback: fallback }),
+  setReceipt: (v, fallback = false, reason = null) =>
+    set({ receipt: v, receiptFallback: fallback, receiptReason: reason }),
+  setSoundOn: (v) => set({ soundOn: v }),
 
   begin: () => {
     sessionClock.reset();
@@ -140,6 +155,7 @@ export const useSession = create<SessionState>((set, get) => ({
       llmInput: null,
       receipt: null,
       receiptFallback: false,
+      receiptReason: null,
       alert: null,
       sceneNonce: 0,
     });
@@ -183,6 +199,7 @@ export const useSession = create<SessionState>((set, get) => ({
       llmInput: null,
       receipt: null,
       receiptFallback: false,
+      receiptReason: null,
       sceneNonce: 0,
     });
   },

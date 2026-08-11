@@ -17,6 +17,7 @@ import {
   type SessionCommand,
 } from '@/lib/session/channel';
 import { useSession, type SignalMode } from '@/lib/session/store';
+import type { HealthResponse } from '@/app/api/health/route';
 
 /**
  * /operator — 진행자 화면.
@@ -88,6 +89,94 @@ function Panel({ title, children }: { title: string; children: React.ReactNode }
   );
 }
 
+/**
+ * 서버 진단.
+ *
+ * 영수증에 "규칙 기반 해석"이 찍히는 이유는 두 가지로 갈린다:
+ * 키가 서버에 안 보이거나(환경변수 스코프·재배포 누락), 호출이 실패했거나.
+ * 이 둘을 구분하지 못하면 부스에서 손쓸 방법이 없다.
+ *
+ * 키 값은 절대 받아오지 않는다 — 있는지 여부와 길이만 본다.
+ */
+async function fetchHealth(): Promise<HealthResponse | null> {
+  try {
+    const res = await fetch('/api/health', { cache: 'no-store' });
+    if (!res.ok) return null;
+    return (await res.json()) as HealthResponse;
+  } catch {
+    return null;
+  }
+}
+
+function HealthPanel() {
+  const [health, setHealth] = useState<HealthResponse | null>(null);
+  const [failed, setFailed] = useState(false);
+
+  const apply = useCallback((data: HealthResponse | null) => {
+    setHealth(data);
+    setFailed(data === null);
+  }, []);
+
+  useEffect(() => {
+    // 상태 갱신은 콜백 안에서만 한다. 이펙트 본문에서 동기 setState를 하면
+    // 렌더가 연쇄로 다시 돈다 (react-hooks/set-state-in-effect).
+    let alive = true;
+    void fetchHealth().then((data) => {
+      if (alive) apply(data);
+    });
+    return () => {
+      alive = false;
+    };
+  }, [apply]);
+
+  const row = (label: string, value: string, warn = false) => (
+    <li className="flex items-baseline justify-between gap-3 py-2.5">
+      <span className="t-label">{label}</span>
+      <span
+        className="t-body-strong text-[14px]"
+        style={{ color: warn ? 'var(--color-hr)' : 'var(--color-ink)' }}
+      >
+        {value}
+      </span>
+    </li>
+  );
+
+  return (
+    <Panel title="서버 진단">
+      {failed || !health ? (
+        <p className="t-body text-ink-2">
+          {failed ? '진단 정보를 가져오지 못했습니다.' : '확인하는 중입니다.'}
+        </p>
+      ) : (
+        <ul className="divide-y divide-line">
+          {row(
+            '해석 API 키',
+            health.interpretKey ? `있음 (${health.interpretKeyLength}자)` : '없음',
+            !health.interpretKey,
+          )}
+          {row('해석 모델', health.interpretModel)}
+          {row('세션 저장소', health.supabase ? 'Supabase 연결됨' : '로컬만')}
+          {row('환경', health.env)}
+        </ul>
+      )}
+      <div className="mt-4 flex flex-col items-start gap-3">
+        {health && !health.interpretKey && (
+          <p className="text-[13px] leading-snug text-ink-3">
+            키를 넣었는데도 &lsquo;없음&rsquo;이면 해당 환경(Production/Preview)에 체크가 빠졌거나,
+            키를 추가한 뒤 재배포를 하지 않은 것입니다.
+          </p>
+        )}
+        <button
+          onClick={() => void fetchHealth().then(apply)}
+          className="t-label underline underline-offset-4 hover:text-ink"
+        >
+          다시 확인
+        </button>
+      </div>
+    </Panel>
+  );
+}
+
 export default function OperatorPage() {
   const scene = useSession((s) => s.scene);
   const status = useSession((s) => s.status);
@@ -97,6 +186,7 @@ export default function OperatorPage() {
   const personaId = useSession((s) => s.personaId);
   const receipt = useSession((s) => s.receipt);
   const fallback = useSession((s) => s.receiptFallback);
+  const reason = useSession((s) => s.receiptReason);
   const setSignalMode = useSession((s) => s.setSignalMode);
   const setPersona = useSession((s) => s.setPersona);
   const pause = useSession((s) => s.pause);
@@ -332,6 +422,11 @@ export default function OperatorPage() {
                   <span className="t-body text-ink-2">{receipt.one_liner}</span>
                   {fallback && <span className="t-label text-warn">규칙 기반</span>}
                 </div>
+                {fallback && (
+                  <p className="mt-2 text-[13px] font-semibold text-warn">
+                    폴백 사유: {reason ?? '알 수 없음'}
+                  </p>
+                )}
                 <ul className="mt-4 space-y-2">
                   {receipt.evidence.map((e, i) => (
                     <li key={i} className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
@@ -373,6 +468,8 @@ export default function OperatorPage() {
               저장소: 로컬{hasSupabase() ? ' + Supabase' : ' (Supabase 미설정)'}
             </p>
           </Panel>
+
+          <HealthPanel />
 
           <Panel title="진행자 가이드 (부록 B)">
             <ul className="space-y-2.5">

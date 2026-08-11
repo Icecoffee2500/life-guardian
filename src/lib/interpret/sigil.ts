@@ -55,7 +55,7 @@ export function buildSigil(input: LlmInput): Sigil {
   const settle = input.calm_phase.settle_time_sec;
   const core =
     input.calm_phase.reached && settle !== null
-      ? Math.max(0.12, Math.min(0.34, 0.34 - (settle / 120) * 0.22))
+      ? Math.max(0.12, Math.min(0.3, 0.3 - (settle / 120) * 0.18))
       : 0.1;
 
   return {

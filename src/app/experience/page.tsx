@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { AnimatePresence } from 'motion/react';
 import ProgressRail from '@/components/experience/ProgressRail';
+import SoundToggle from '@/components/experience/SoundToggle';
 import VitalsReadout from '@/components/experience/VitalsReadout';
 import S0Intro from '@/components/scenes/S0Intro';
 import S1Connect from '@/components/scenes/S1Connect';
@@ -15,6 +16,7 @@ import S7Replay from '@/components/scenes/S7Replay';
 import S8Result from '@/components/scenes/S8Result';
 import { useSceneTimer } from '@/hooks/useSceneTimer';
 import { useSensorSetup } from '@/hooks/useSensors';
+import { heartbeat } from '@/lib/audio/heartbeat';
 import { useInterpretation } from '@/hooks/useInterpretation';
 import { useSessionBroadcast } from '@/hooks/useSessionBroadcast';
 import { useSession } from '@/lib/session/store';
@@ -59,6 +61,20 @@ export default function ExperiencePage() {
   // 진행자 화면으로 실황을 내보낸다 (같은 기기의 다른 창 + Supabase가 있으면 다른 기기)
   useSessionBroadcast(railProgress);
 
+  /*
+    심장 소리는 대화 씬에서만 재운다.
+    마이크가 열려 있는 동안 스피커에서 심박이 나오면 STT가 그걸 같이 받아 적고,
+    응답 지연(첫 발화 시각) 측정까지 오염된다.
+    결과 화면에서도 멈춘다 — 측정이 끝난 뒤의 심박은 더 이상 이야기의 일부가 아니다.
+  */
+  const soundActive = scene !== 'S6' && scene !== 'S8';
+  useEffect(() => {
+    heartbeat.setActive(soundActive);
+  }, [soundActive]);
+
+  // 페이지를 떠나면 소리도 끝난다
+  useEffect(() => () => heartbeat.disable(), []);
+
   // 진행자용 단축키: → 다음 씬, ← 이전 씬
   const back = useSession((s) => s.back);
   useEffect(() => {
@@ -78,7 +94,7 @@ export default function ExperiencePage() {
     <main
       data-scene={scene}
       data-status={status}
-      className="relative h-dvh w-full overflow-hidden bg-ink-950"
+      className="relative h-dvh w-full overflow-hidden bg-surface"
     >
       {scene !== 'S0' && <ProgressRail scene={scene} sceneProgress={railProgress} />}
 
@@ -100,7 +116,11 @@ export default function ExperiencePage() {
       {scene !== 'S0' && (
         <div className="pointer-events-none absolute inset-x-0 bottom-0 z-30 flex items-end justify-between px-6 pb-6 sm:px-10">
           <VitalsReadout />
-          <span className="text-[10px] tracking-[0.14em] text-paper-mute/60">{def.label}</span>
+          <div className="flex items-center gap-4">
+            {/* 소리를 재우는 씬에서는 스위치도 숨긴다 — '켜짐'인데 조용하면 고장으로 읽힌다 */}
+            {soundActive && <SoundToggle />}
+            <span className="t-label">{def.label}</span>
+          </div>
         </div>
       )}
     </main>

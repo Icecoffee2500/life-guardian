@@ -12,6 +12,7 @@ import {
   type LiveDeviceKind,
 } from '@/hooks/useSensors';
 import GazeCalibration from '@/components/experience/GazeCalibration';
+import { heartbeat } from '@/lib/audio/heartbeat';
 import type { WebGazerSource } from '@/lib/sensors/webgazer';
 import { useSession } from '@/lib/session/store';
 import type { SourceSnapshot } from '@/lib/sensors/types';
@@ -178,6 +179,21 @@ export default function S1Connect({ onDone }: { onDone: () => void }) {
     if (!res.ok) setLinkError(`${kind} 연결 실패 — 시뮬레이터로 계속합니다`);
   }, []);
 
+  const soundOn = useSession((s) => s.soundOn);
+  const setSoundOn = useSession((s) => s.setSoundOn);
+
+  /**
+   * 측정을 시작한다.
+   *
+   * 오디오 컨텍스트는 **여기서** 만들어야 한다. 이 클릭이 이 세션에서
+   * 사용자 제스처가 확실히 있는 마지막 지점이고, 다음 씬(S2)부터 심박이 들려야 한다.
+   * 씬 안에서 자동으로 만들면 브라우저가 suspended 상태로 붙잡아 둔다.
+   */
+  const start = useCallback(() => {
+    if (soundOn) void heartbeat.enable();
+    onDone();
+  }, [onDone, soundOn]);
+
   const webcamOn = gazeMode === 'webcam' && gazeCalibrated;
 
   if (calibrating) {
@@ -262,11 +278,45 @@ export default function S1Connect({ onDone }: { onDone: () => void }) {
         </div>
 
         {/*
+          심장 소리. 파형과 숫자는 "측정되고 있다"까지만 전달하고,
+          "이게 내 것이다"는 소리가 만든다. 기본은 켬 — 끄고 싶은 사람은 언제든 끌 수 있다.
+        */}
+        <div className="mt-3 flex items-center justify-between gap-4 rounded-[4px] border border-line bg-surface-raised p-4">
+          <div className="min-w-0">
+            <p className="t-body-strong text-ink">심장 소리를 함께 들을까요?</p>
+            <p className="mt-1 text-[13px] leading-snug text-ink-3">
+              측정되는 심박 간격 그대로 소리가 납니다. 체험 중에도 끌 수 있습니다.
+            </p>
+          </div>
+          <button
+            role="switch"
+            aria-checked={soundOn}
+            aria-label="심장 소리"
+            onClick={() => {
+              const next = !soundOn;
+              setSoundOn(next);
+              if (!next) heartbeat.disable();
+            }}
+            className={`relative h-8 w-14 shrink-0 rounded-full border transition-colors duration-200 ${
+              soundOn ? 'border-ink bg-surface-inverse' : 'border-line-strong bg-surface-sunken'
+            }`}
+          >
+            <span
+              className="absolute top-1/2 h-5 w-5 -translate-y-1/2 rounded-full transition-all duration-200"
+              style={{
+                left: soundOn ? 'calc(100% - 1.5rem)' : '0.25rem',
+                background: soundOn ? 'var(--color-surface)' : 'var(--color-line-strong)',
+              }}
+            />
+          </button>
+        </div>
+
+        {/*
           자동으로 넘기지 않는다. 여기는 웹캠을 켤지 정하는 결정 지점이고,
           2.6초 뒤에 화면이 저절로 넘어가면 그 결정을 할 시간이 없다.
         */}
         <div className="mt-6 flex flex-col items-center gap-3">
-          <Button size="lg" onClick={onDone} disabled={!ready} className="w-full">
+          <Button size="lg" onClick={start} disabled={!ready} className="w-full">
             {ready ? '측정 시작' : '연결하는 중입니다'}
           </Button>
           {live && (

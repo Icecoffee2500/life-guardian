@@ -211,7 +211,7 @@ export default function S4Gaze({
           <AnimatePresence>
             {idx <= 0 && (
               <motion.p
-                className="text-center text-[12px] font-light tracking-[0.06em] text-paper-mute"
+                className="t-label text-center"
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
@@ -255,7 +255,7 @@ export default function S4Gaze({
               transition={{ duration: 0.4 }}
             >
               <motion.span
-                className="text-[26px] font-extralight text-paper-dim"
+                className="text-[30px] font-light text-ink-3"
                 animate={{ opacity: [0.45, 0.9, 0.45] }}
                 transition={{ duration: 2.2, repeat: Infinity, ease: 'easeInOut' }}
                 aria-hidden

@@ -59,7 +59,7 @@ export function useInterpretation() {
       .then((out) => {
         if (ac.signal.aborted) return;
         setLlmInput(out.input);
-        setReceipt(out.receipt, out.fallback);
+        setReceipt(out.receipt, out.fallback, out.reason ?? null);
 
         // 영수증이 나오는 즉시 저장한다. 저장 실패는 체험을 막지 않는다.
         const hr = sessionRecorder.hr;
