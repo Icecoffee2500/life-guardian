@@ -64,11 +64,18 @@ export default function S2Baseline() {
 
       <div className="relative z-10 flex flex-col items-center">
         <div className="relative flex h-[clamp(15rem,42vh,20rem)] w-[clamp(15rem,42vh,20rem)] items-center justify-center">
+          {/*
+            링 색은 밝은 배경 위에서 그려야 한다.
+            목표 궤도(옅음)는 var(--color-ink)/var(--color-hrv)를 color-mix로 흐리게,
+            움직이는 링(짙음)은 var(--color-line-strong)/var(--color-hrv)를 그대로 쓴다.
+          */}
           {/* 바깥 궤도 — 목표 크기. 여기까지 채우면 들숨이 끝난다. */}
           <div
             className="absolute inset-0 rounded-full border transition-colors duration-[2500ms]"
             style={{
-              borderColor: settled ? 'rgba(159,180,137,0.22)' : 'rgba(236,233,227,0.10)',
+              borderColor: settled
+                ? 'color-mix(in srgb, var(--color-hrv) 32%, transparent)'
+                : 'color-mix(in srgb, var(--color-ink) 12%, transparent)',
             }}
           />
 
@@ -76,7 +83,7 @@ export default function S2Baseline() {
             className="absolute rounded-full border"
             style={{
               inset: 0,
-              borderColor: settled ? 'rgba(159,180,137,0.55)' : 'rgba(236,233,227,0.4)',
+              borderColor: settled ? 'var(--color-hrv)' : 'var(--color-line-strong)',
               transition: 'border-color 2500ms ease',
             }}
             animate={{ scale: [0.58, 1, 0.58] }}
@@ -87,14 +94,17 @@ export default function S2Baseline() {
             }}
           />
 
-          {/* 안쪽 면 — 숨이 차오르는 감각 */}
+          {/*
+            안쪽 면 — 숨이 차오르는 감각.
+            흰빛 글로우는 밝은 배경에서 보이지 않는다. 대신 아주 옅은 잉크 틴트를 쓴다.
+          */}
           <motion.div
             className="absolute rounded-full"
             style={{
               inset: 0,
               background: settled
-                ? 'radial-gradient(circle, rgba(159,180,137,0.13) 0%, rgba(159,180,137,0) 70%)'
-                : 'radial-gradient(circle, rgba(236,233,227,0.10) 0%, rgba(236,233,227,0) 70%)',
+                ? 'radial-gradient(circle, rgba(78,107,47,0.14) 0%, rgba(78,107,47,0) 70%)'
+                : 'radial-gradient(circle, rgba(22,22,26,0.06) 0%, rgba(22,22,26,0) 70%)',
               transition: 'background 2500ms ease',
             }}
             animate={{ scale: [0.5, 0.94, 0.5], opacity: [0.5, 1, 0.5] }}
@@ -108,7 +118,7 @@ export default function S2Baseline() {
           <AnimatePresence mode="wait">
             <motion.span
               key={inhaling ? 'in' : 'out'}
-              className="text-[13px] font-light tracking-[0.3em] text-paper-dim"
+              className="t-title text-ink-2"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
@@ -119,7 +129,8 @@ export default function S2Baseline() {
           </AnimatePresence>
         </div>
 
-        <div className="mt-12 h-10">
+        {/* 글자 크기를 키우면서 예약 높이도 함께 늘렸다 — 안 그러면 등장할 때 잘린다. */}
+        <div className="mt-12 h-24">
           <AnimatePresence mode="wait">
             {settled ? (
               <motion.div
@@ -129,8 +140,8 @@ export default function S2Baseline() {
                 transition={{ duration: 1.1, ease: [0.22, 0.61, 0.36, 1] }}
                 className="flex flex-col items-center"
               >
-                <span className="text-[13px] font-light text-hrv">신호가 가라앉았습니다</span>
-                <span className="tnum mt-2 text-[11px] tracking-[0.12em] text-paper-mute">
+                <span className="t-title text-hrv">신호가 가라앉았습니다</span>
+                <span className="tnum t-label mt-2">
                   {m.settleTimeSec?.toFixed(1)}초 만에 안정
                 </span>
               </motion.div>

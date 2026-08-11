@@ -1,29 +1,30 @@
 'use client';
 
 /**
- * 남은 시간 링.
+ * 남은 시간 표시.
  *
- * 숫자 카운트다운은 압박을 만든다. 얇은 호가 조용히 줄어드는 편이 낫다.
- * 마지막 15%에서만 색이 살짝 따뜻해진다.
+ * 이전 버전은 얇은 호만 있어서 얼마나 남았는지 읽으려면 들여다봐야 했다.
+ * 계측 장비의 게이지는 곁눈으로도 읽혀야 한다 — 굵기를 올리고 숫자를 함께 둔다.
  */
 export default function TimeRing({
   progress,
-  size = 40,
-  stroke = 1.5,
+  size = 44,
+  stroke = 3,
   className = '',
-  label,
+  seconds,
 }: {
   /** 0(시작) ~ 1(종료) */
   progress: number;
   size?: number;
   stroke?: number;
   className?: string;
-  label?: string;
+  /** 남은 초. 주면 링 안에 숫자를 넣는다. */
+  seconds?: number;
 }) {
   const r = (size - stroke) / 2;
   const c = 2 * Math.PI * r;
   const left = Math.max(0, 1 - progress);
-  const urgent = left < 0.15;
+  const urgent = left < 0.2;
 
   return (
     <div className={`relative inline-flex items-center justify-center ${className}`}>
@@ -33,7 +34,7 @@ export default function TimeRing({
           cy={size / 2}
           r={r}
           fill="none"
-          stroke="rgba(236,233,227,0.10)"
+          stroke="var(--color-line)"
           strokeWidth={stroke}
         />
         <circle
@@ -41,16 +42,15 @@ export default function TimeRing({
           cy={size / 2}
           r={r}
           fill="none"
-          stroke={urgent ? 'var(--color-hr)' : 'rgba(236,233,227,0.5)'}
+          stroke={urgent ? 'var(--color-hr)' : 'var(--color-ink)'}
           strokeWidth={stroke}
-          strokeLinecap="round"
+          strokeLinecap="butt"
           strokeDasharray={c}
           strokeDashoffset={c * (1 - left)}
-          style={{ transition: 'stroke 900ms ease' }}
         />
       </svg>
-      {label && (
-        <span className="tnum absolute text-[10px] font-light text-paper-mute">{label}</span>
+      {seconds !== undefined && (
+        <span className="t-number absolute text-[13px] text-ink">{Math.max(0, seconds)}</span>
       )}
     </div>
   );

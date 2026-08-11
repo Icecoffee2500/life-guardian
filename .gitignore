@@ -48,3 +48,4 @@ test-results/
 # session data (참가자 측정 데이터는 저장소에 커밋하지 않음)
 /sessions/
 *.session.json
+public/vendor/webgazer/

@@ -23,6 +23,8 @@ export function useInterpretation() {
   const sessionId = useSession((s) => s.sessionId);
   const signalMode = useSession((s) => s.signalMode);
   const personaId = useSession((s) => s.personaId);
+  const gazeMode = useSession((s) => s.gazeMode);
+  const gazeCalibrated = useSession((s) => s.gazeCalibrated);
   const setReceipt = useSession((s) => s.setReceipt);
   const setLlmInput = useSession((s) => s.setLlmInput);
 
@@ -43,8 +45,12 @@ export function useInterpretation() {
       sessionId,
       settled: metrics.settled,
       settleTimeSec: metrics.settleTimeSec,
-      // 데모·시뮬레이션의 시선은 실기기가 아니다. 그 사실을 프롬프트가 알아야 한다.
-      gazeDegraded: signalMode !== 'live',
+      /*
+       * 시선 품질은 **무엇으로 쟀는지**로 정한다.
+       * 보정을 마친 웹캠 추적만 'ok'다. 포인터 프록시는 커서를 세워두면
+       * 그 위치를 계속 응시로 기록하므로, 그 데이터로 성향을 단정하면 안 된다.
+       */
+      gazeDegraded: !(gazeMode === 'webcam' && gazeCalibrated),
       pressureTrusted: false,
       futureSketch: auto ? persona.drawing.futureSketch : null,
       speechTopOverride: auto ? persona.speechTopRiasec : undefined,
@@ -53,7 +59,7 @@ export function useInterpretation() {
       .then((out) => {
         if (ac.signal.aborted) return;
         setLlmInput(out.input);
-        setReceipt(out.receipt, out.fallback);
+        setReceipt(out.receipt, out.fallback, out.reason ?? null);
 
         // 영수증이 나오는 즉시 저장한다. 저장 실패는 체험을 막지 않는다.
         const hr = sessionRecorder.hr;
@@ -75,5 +81,5 @@ export function useInterpretation() {
       });
 
     return () => ac.abort();
-  }, [personaId, scene, sessionId, setLlmInput, setReceipt, signalMode]);
+  }, [gazeCalibrated, gazeMode, personaId, scene, sessionId, setLlmInput, setReceipt, signalMode]);
 }

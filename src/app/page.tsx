@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import Reveal from '@/components/landing/Reveal';
 import HeroPulse from '@/components/landing/HeroPulse';
+import Button from '@/components/ui/Button';
 
 /**
  * 랜딩 — 심사위원이 URL을 열었을 때 처음 보는 화면.
@@ -41,55 +42,54 @@ const SIGNALS = [
 
 export default function Home() {
   return (
-    <main className="bg-ink-950">
+    <main className="bg-surface">
       {/* ── 히어로 ─────────────────────────────────────────── */}
       <section className="relative flex min-h-dvh flex-col items-center justify-center overflow-hidden px-6">
         <HeroPulse />
 
         <div className="relative z-10 flex flex-col items-center">
-          <p className="text-[10px] uppercase tracking-[0.32em] text-paper-mute">Life Guardian</p>
+          {/* "LIFE GUARDIAN"은 짧은 라틴 로고 라벨이라 t-label의 좁은 자간 대신
+              넓은 자간을 그대로 유지한다 — 한글 본문과 달리 넓혀도 읽기가 나빠지지 않는다. */}
+          <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-ink-3">Life Guardian</p>
 
-          <h1 className="scene-title mt-10 text-balance text-center text-[clamp(2.1rem,6.4vw,4.6rem)]">
+          <h1 className="t-hero mt-10 text-balance text-center text-ink">
             당신의 몸은
             <br />
             이미 알고 있습니다
           </h1>
 
-          <p className="mt-9 max-w-lg text-balance text-center text-[clamp(0.9rem,1.7vw,1.05rem)] font-light leading-[1.9] text-paper-dim">
+          <p className="t-body mt-9 max-w-lg text-balance text-center text-ink-2">
             10분 동안 시선과 손과 목소리를 기록해,
             <br />
             스스로도 몰랐던 반응의 패턴을 돌려드립니다.
           </p>
 
-          <Link
-            href="/experience"
-            className="mt-14 rounded-full border border-paper/20 px-9 py-3.5 text-[13px] tracking-[0.1em] text-paper transition-all duration-500 ease-[cubic-bezier(0.22,0.61,0.36,1)] hover:border-paper/45 hover:bg-paper/[0.06]"
-          >
-            체험 시작
+          <Link href="/experience" className="mt-14">
+            <Button variant="primary" size="lg">
+              체험 시작
+            </Button>
           </Link>
 
-          <p className="mt-7 text-[11px] tracking-[0.08em] text-paper-mute">
-            센서가 없어도 됩니다. 시뮬레이션으로 전체가 진행됩니다.
-          </p>
+          <p className="t-label mt-7">센서가 없어도 됩니다. 시뮬레이션으로 전체가 진행됩니다.</p>
         </div>
 
         <div className="absolute inset-x-0 bottom-10 flex justify-center">
-          <span className="text-[10px] tracking-[0.24em] text-paper-mute/50">SCROLL</span>
+          <span className="text-[10px] font-semibold tracking-[0.28em] text-ink-3">SCROLL</span>
         </div>
       </section>
 
       {/* ── 문제 제기 ──────────────────────────────────────── */}
       <section className="mx-auto max-w-3xl px-6 py-[18vh]">
         <Reveal>
-          <p className="text-balance text-center text-[clamp(1.3rem,3.4vw,2.3rem)] font-light leading-[1.6] tracking-[-0.02em] text-paper">
+          <p className="t-display text-balance text-center text-ink">
             보험은 사고가 난 뒤에 옵니다.
             <br />
-            <span className="text-paper-mute">그 전에 올 수는 없을까요.</span>
+            <span className="text-ink-3">그 전에 올 수는 없을까요.</span>
           </p>
         </Reveal>
 
         <Reveal delay={0.15}>
-          <p className="mx-auto mt-14 max-w-xl text-balance text-center text-[14px] font-light leading-[2] text-paper-dim">
+          <p className="t-body mx-auto mt-14 max-w-xl text-balance text-center text-ink-2">
             관계와 직업에서 오는 스트레스는 대부분 &lsquo;나와 맞지 않는 자리&rsquo;에서 시작됩니다.
             문제는 무엇이 맞지 않는지를 본인이 가장 늦게 안다는 것입니다. 몸은 훨씬 먼저 압니다.
           </p>
@@ -99,18 +99,16 @@ export default function Home() {
       {/* ── 신호 ───────────────────────────────────────────── */}
       <section className="mx-auto max-w-3xl px-6 pb-[14vh]">
         <Reveal>
-          <p className="text-center text-[10px] tracking-[0.24em] text-paper-mute">읽는 신호</p>
+          <p className="t-label text-center">읽는 신호</p>
         </Reveal>
-        <div className="mt-10 divide-y divide-paper/8 overflow-hidden rounded-2xl border border-paper/8">
+        <div className="mt-10 divide-y divide-line overflow-hidden rounded-2xl border border-line">
           {SIGNALS.map((s, i) => (
             <Reveal key={s.label} delay={i * 0.08}>
               <div className="flex items-center gap-5 px-6 py-5">
-                <span
-                  className="h-1 w-1 shrink-0 rounded-full"
-                  style={{ background: s.color, boxShadow: `0 0 10px ${s.color}` }}
-                />
-                <span className="w-40 shrink-0 text-[13.5px] font-light text-paper">{s.label}</span>
-                <span className="text-[11.5px] text-paper-mute">{s.detail}</span>
+                {/* 점은 채널 구분용 색 표식일 뿐이다 — 밝은 바탕에선 글로우가 얼룩으로 보여 뺀다 */}
+                <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: s.color }} />
+                <span className="t-body w-40 shrink-0 text-ink">{s.label}</span>
+                <span className="t-label">{s.detail}</span>
               </div>
             </Reveal>
           ))}
@@ -120,23 +118,17 @@ export default function Home() {
       {/* ── 흐름 ───────────────────────────────────────────── */}
       <section className="mx-auto max-w-3xl px-6 pb-[18vh]">
         <Reveal>
-          <p className="text-center text-[10px] tracking-[0.24em] text-paper-mute">10분의 흐름</p>
+          <p className="t-label text-center">10분의 흐름</p>
         </Reveal>
 
         <div className="mt-16 space-y-20">
           {PHASES.map((p, i) => (
             <Reveal key={p.n} delay={i * 0.05}>
               <div className="flex gap-7 sm:gap-12">
-                <span className="tnum shrink-0 pt-1 text-[11px] tracking-[0.1em] text-paper-mute">
-                  {p.n}
-                </span>
+                <span className="tnum t-label shrink-0 pt-1">{p.n}</span>
                 <div className="min-w-0">
-                  <h2 className="text-[clamp(1.05rem,2.4vw,1.5rem)] font-light leading-snug tracking-[-0.02em] text-paper">
-                    {p.title}
-                  </h2>
-                  <p className="mt-4 max-w-lg text-[13.5px] font-light leading-[1.95] text-paper-dim">
-                    {p.body}
-                  </p>
+                  <h2 className="t-title text-ink">{p.title}</h2>
+                  <p className="t-body mt-4 max-w-lg text-ink-2">{p.body}</p>
                 </div>
               </div>
             </Reveal>
@@ -145,10 +137,10 @@ export default function Home() {
       </section>
 
       {/* ── 원칙 ───────────────────────────────────────────── */}
-      <section className="border-y border-paper/8 bg-ink-900/40">
+      <section className="border-y border-line bg-surface-raised">
         <div className="mx-auto max-w-3xl px-6 py-[12vh]">
           <Reveal>
-            <p className="text-center text-[10px] tracking-[0.24em] text-paper-mute">지키는 것</p>
+            <p className="t-label text-center">지키는 것</p>
           </Reveal>
           <Reveal delay={0.1}>
             <ul className="mx-auto mt-12 max-w-xl space-y-5">
@@ -158,8 +150,8 @@ export default function Home() {
                 '음성 원본은 저장하지 않습니다. 텍스트로 바꾼 뒤 파기합니다.',
                 '언제든 답을 건너뛰거나 중단할 수 있습니다.',
               ].map((t) => (
-                <li key={t} className="flex gap-4 text-[13.5px] font-light leading-[1.8] text-paper-dim">
-                  <span className="mt-2.5 h-px w-4 shrink-0 bg-paper/25" aria-hidden />
+                <li key={t} className="t-body flex gap-4 text-ink-2">
+                  <span className="mt-2.5 h-px w-4 shrink-0 bg-line-strong" aria-hidden />
                   <span>{t}</span>
                 </li>
               ))}
@@ -171,7 +163,7 @@ export default function Home() {
       {/* ── 닫는 말 ────────────────────────────────────────── */}
       <section className="flex min-h-[70vh] flex-col items-center justify-center px-6">
         <Reveal>
-          <p className="text-balance text-center text-[clamp(1.4rem,3.6vw,2.4rem)] font-light leading-[1.55] tracking-[-0.025em] text-paper">
+          <p className="t-display text-balance text-center text-ink">
             10분 뒤, 당신은
             <br />
             자신에 대해 한 가지를 더 알게 됩니다.
@@ -179,23 +171,20 @@ export default function Home() {
         </Reveal>
         <Reveal delay={0.2}>
           <div className="mt-14 flex flex-col items-center">
-            <Link
-              href="/experience"
-              className="rounded-full border border-paper/20 px-9 py-3.5 text-[13px] tracking-[0.1em] text-paper transition-all duration-500 ease-[cubic-bezier(0.22,0.61,0.36,1)] hover:border-paper/45 hover:bg-paper/[0.06]"
-            >
-              체험 시작
+            <Link href="/experience">
+              <Button variant="primary" size="lg">
+                체험 시작
+              </Button>
             </Link>
-            <p className="mt-6 text-[11px] tracking-[0.08em] text-paper-mute">
-              시간이 없다면 3분 압축 모드로도 완주할 수 있습니다.
-            </p>
+            <p className="t-label mt-6">시간이 없다면 3분 압축 모드로도 완주할 수 있습니다.</p>
           </div>
         </Reveal>
       </section>
 
-      <footer className="border-t border-paper/8 px-6 py-10">
+      <footer className="border-t border-line px-6 py-10">
         <div className="mx-auto flex max-w-3xl flex-col items-center gap-3">
-          <p className="text-[10px] tracking-[0.24em] text-paper-mute">LIFENOLOGY LAB 3기</p>
-          <p className="text-center text-[10.5px] leading-relaxed text-paper-mute/70">
+          <p className="t-label">LIFENOLOGY LAB 3기</p>
+          <p className="t-label text-center">
             이 체험은 상담도 진단도 아니며, 결과는 오늘 측정된 반응의 요약입니다.
           </p>
         </div>

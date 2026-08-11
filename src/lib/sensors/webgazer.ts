@@ -16,15 +16,36 @@ import type { GazeSample, SourceKind, SourceMode } from './types';
  * **데모 모드에서는 절대 로드되면 안 된다**. 심사위원 대부분은 웹캠 권한을 주지 않는다.
  */
 
-/** 자기호스팅한 webgazer 번들 경로. public/vendor/에 두고 커밋한다(CDN 의존 금지). */
-export const WEBGAZER_SRC = '/vendor/webgazer.js';
+/**
+ * 자기호스팅한 webgazer 번들 경로.
+ * scripts/vendor-webgazer.mjs가 빌드 직전에 node_modules에서 복사한다(CDN 의존 금지).
+ */
+export const WEBGAZER_SRC = '/vendor/webgazer/webgazer.js';
+
+/**
+ * mediapipe face_mesh 자산 경로.
+ *
+ * webgazer의 기본값은 './mediapipe/face_mesh'인데 이건 **페이지 URL 기준**으로 풀린다.
+ * 우리 페이지는 /experience라서 그대로 두면 /mediapipe/face_mesh를 찾다가 404가 나고,
+ * 얼굴 추적이 조용히 시작되지 않는다. 절대 경로로 덮어써야 한다.
+ */
+export const FACE_MESH_PATH = '/vendor/webgazer/mediapipe/face_mesh';
 
 interface WebGazerPrediction {
   x: number;
   y: number;
 }
 
+interface WebGazerParams {
+  faceMeshSolutionPath?: string;
+  showVideo?: boolean;
+  showFaceOverlay?: boolean;
+  showFaceFeedbackBox?: boolean;
+  showGazeDot?: boolean;
+}
+
 interface WebGazerApi {
+  params?: WebGazerParams;
   setRegression(name: string): WebGazerApi;
   setTracker(name: string): WebGazerApi;
   setGazeListener(cb: (data: WebGazerPrediction | null, t: number) => void): WebGazerApi;
@@ -105,6 +126,9 @@ export class WebGazerSource extends BaseSource<GazeSample> {
     try {
       const api = await loadWebGazer();
       this.api = api;
+
+      // 자산 경로를 먼저 잡아 준다. begin() 이후에 바꾸면 이미 로드를 시작한 뒤다.
+      if (api.params) api.params.faceMeshSolutionPath = FACE_MESH_PATH;
 
       api
         .setRegression('ridge')

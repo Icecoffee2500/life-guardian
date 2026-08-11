@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import QRCode from 'qrcode';
+import BioSigil from '@/components/experience/BioSigil';
+import { buildSigil } from '@/lib/interpret/sigil';
 import { RECOMMENDATION_KEYS } from '@/lib/interpret/schema';
 import type { SessionRecord } from '@/lib/storage/record';
 
@@ -57,6 +59,7 @@ function Row({ label, value }: { label: string; value: string }) {
 
 export default function ReceiptSheet({ record }: { record: SessionRecord }) {
   const r = record.receipt;
+  const sigil = buildSigil(record.input);
   const [qr, setQr] = useState<string | null>(null);
 
   useEffect(() => {
@@ -92,6 +95,13 @@ export default function ReceiptSheet({ record }: { record: SessionRecord }) {
       <Rule />
 
       <div className="text-center">
+        {/* 개인 문양 — 이 종이를 사진 찍게 만드는 유일한 그림.
+            화면(S8)과 같은 컴포넌트를 쓴다. 두 곳의 모양이 다르면 "내 문양"이 깨진다. */}
+        {sigil?.measured && (
+          <div className="mb-2 flex justify-center">
+            <BioSigil sigil={sigil} size={104} mono />
+          </div>
+        )}
         <div className="text-[9px] tracking-[0.14em] opacity-60">
           {record.nickname ? `${record.nickname} 님` : '오늘의 관측'}
         </div>
