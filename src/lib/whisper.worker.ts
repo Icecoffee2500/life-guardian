@@ -44,8 +44,24 @@ async function load(): Promise<void> {
     const tf = await import('@huggingface/transformers');
     const { pipeline, env } = tf;
 
-    // onnxruntime의 wasm 바이너리도 우리 도메인에서 준다 (기본값은 외부 CDN이다)
-    if (env.backends?.onnx?.wasm) env.backends.onnx.wasm.wasmPaths = '/vendor/transformers/';
+    /*
+      onnxruntime의 wasm 바이너리도 우리 도메인에서 준다.
+
+      기본값은 jsdelivr CDN(`https://cdn.jsdelivr.net/npm/onnxruntime-web@.../dist/`)이다.
+      외부 서버 의존을 없애려고 인식을 기기 안으로 들여왔는데 런타임 바이너리를
+      CDN에서 받아 오면 같은 자리로 돌아온다.
+
+      형식에 주의: 디렉터리 문자열이 아니라 **{ mjs, wasm } 객체**여야 한다.
+      문자열을 넣으면 transformers.js가 캐시 경로를 건너뛰고 기본 동작으로 흘러간다.
+      변형 선택도 라이브러리 기본값과 맞춘다 — Safari는 순수 빌드, 그 외는 asyncify.
+    */
+    const wasmEnv = env.backends?.onnx?.wasm;
+    if (wasmEnv) {
+      const safari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent || '');
+      const base = '/vendor/transformers/';
+      const name = safari ? 'ort-wasm-simd-threaded' : 'ort-wasm-simd-threaded.asyncify';
+      wasmEnv.wasmPaths = { mjs: `${base}${name}.mjs`, wasm: `${base}${name}.wasm` };
+    }
 
     const progress = (p: { status?: string; progress?: number }) => {
       if (p.status === 'progress' && typeof p.progress === 'number') {
