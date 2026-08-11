@@ -44,26 +44,30 @@ export default function S3Calm({ progress }: { progress: number }) {
   return (
     <SceneShell className="px-6">
       <div className="flex flex-col items-center">
-        {/* 아주 느린 숨 하나. 따라 하라고 말하지 않는다. */}
+        {/*
+          아주 느린 숨 하나. 따라 하라고 말하지 않는다.
+          연둣빛(HRV) 글로우는 밝은 배경에서도 보이도록 sage 톤을 그대로 진하게 쓴다.
+        */}
         <motion.div
           className="h-24 w-24 rounded-full"
           style={{
             background:
-              'radial-gradient(circle, rgba(159,180,137,0.22) 0%, rgba(159,180,137,0) 68%)',
+              'radial-gradient(circle, rgba(78,107,47,0.16) 0%, rgba(78,107,47,0) 68%)',
           }}
           animate={{ scale: [0.8, 1.25, 0.8], opacity: [0.55, 1, 0.55] }}
           transition={{ duration: 9, repeat: Infinity, ease: 'easeInOut' }}
         />
 
         <motion.p
-          className="mt-10 text-center text-[clamp(1.05rem,2.2vw,1.5rem)] font-light text-paper-dim"
+          className="t-title mt-10 text-center text-ink-2"
           animate={{ opacity: [0.55, 0.9, 0.55] }}
           transition={{ duration: 9, repeat: Infinity, ease: 'easeInOut' }}
         >
           잠시 눈을 감아도 좋습니다
         </motion.p>
 
-        <div className="mt-14 h-16">
+        {/* 글자 크기를 키우면서 예약 높이도 함께 늘렸다 — 안 그러면 등장할 때 잘린다. */}
+        <div className="mt-14 h-28">
           <AnimatePresence>
             {revealing && (
               <motion.div
@@ -75,16 +79,21 @@ export default function S3Calm({ progress }: { progress: number }) {
               >
                 {drop !== null && drop > 0.8 ? (
                   <>
-                    <span className="text-[12px] tracking-[0.14em] text-paper-mute">
-                      들어올 때보다
-                    </span>
-                    <span className="mt-2 text-[15px] font-light text-paper">
+                    <span className="t-label">들어올 때보다</span>
+                    {/*
+                      이 씬의 감정적 보상 지점 — 참가자가 자기 몸의 변화를 처음 보는 순간이다.
+                      작게 두면 그냥 지나친다. 숫자는 t-title보다도 한 단계 더 키운다.
+                    */}
+                    <span className="t-title mt-2 text-ink">
                       심박이{' '}
-                      <span className="tnum text-hr">{drop.toFixed(1)}</span> bpm 내려갔습니다
+                      <span className="t-number tnum text-[1.15em] text-hr">
+                        {drop.toFixed(1)}
+                      </span>{' '}
+                      bpm 내려갔습니다
                     </span>
                   </>
                 ) : (
-                  <span className="text-[13px] font-light text-paper-dim">
+                  <span className="t-body text-ink-2">
                     {m.settled ? '지금 상태를 기준선으로 잡았습니다' : '기록하고 있습니다'}
                   </span>
                 )}

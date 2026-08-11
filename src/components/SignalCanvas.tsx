@@ -17,14 +17,18 @@ interface Props {
   intensity?: number;
 }
 
-const HR_COLOR = '242, 112, 78';
-const GSR_COLOR = '63, 175, 166';
+/*
+  밝은 배경용 색. 어두운 배경에서 쓰던 밝은 코랄/틸은 흰 종이 위에서
+  형광펜처럼 튀어서 계측값이 아니라 장식으로 읽힌다.
+*/
+const HR_COLOR = '217, 66, 21';
+const GSR_COLOR = '13, 111, 104';
 
 /**
  * 실시간 파형 렌더러.
  *
  * 차트 라이브러리를 쓰지 않는다. 이 화면에서 파형은 데이터 시각화가 아니라
- * "내 몸이 저기 흐르고 있다"는 감각이고, 그 감각은 잔광과 스크롤 리듬에서 나온다.
+ * "내 몸이 저기 흐르고 있다"는 감각이고, 그 감각은 스크롤 리듬에서 나온다.
  */
 export default function SignalCanvas({
   variant = 'ambient',
@@ -75,8 +79,11 @@ export default function SignalCanvas({
     ro.observe(canvas);
     resize();
 
-    const opacity =
-      variant === 'hero' ? 1 : variant === 'strip' ? 0.92 : 0.34;
+    /*
+      밝은 배경에서는 잔광이 안 보이는 대신 선 자체가 강하게 읽힌다.
+      hero(배경 전체)를 예전 값 그대로 두면 화면이 파형으로 뒤덮인다.
+    */
+    const opacity = variant === 'hero' ? 0.34 : variant === 'strip' ? 0.95 : 0.4;
 
     const drawTrace = (
       buf: ScrollBuffer,
@@ -84,7 +91,6 @@ export default function SignalCanvas({
       baseY: number,
       scale: number,
       lineWidth: number,
-      glow: number,
     ) => {
       if (buf.length < 2) return;
       const n = buf.length;
@@ -108,10 +114,8 @@ export default function SignalCanvas({
       ctx.lineWidth = lineWidth;
       ctx.lineJoin = 'round';
       ctx.lineCap = 'round';
-      ctx.shadowColor = `rgba(${color}, ${0.55 * opacity * intensity})`;
-      ctx.shadowBlur = glow;
+      // 밝은 배경에서 그림자는 잔광이 아니라 얼룩으로 보인다. 쓰지 않는다.
       ctx.stroke();
-      ctx.shadowBlur = 0;
 
       // 선단의 작은 광점 — 지금 이 순간이 어디인지
       if (variant !== 'ambient') {
@@ -119,10 +123,7 @@ export default function SignalCanvas({
         ctx.beginPath();
         ctx.arc(w - 1, y, lineWidth * 1.15, 0, Math.PI * 2);
         ctx.fillStyle = `rgba(${color}, ${0.95 * opacity * intensity})`;
-        ctx.shadowColor = `rgba(${color}, 0.9)`;
-        ctx.shadowBlur = glow * 1.6;
         ctx.fill();
-        ctx.shadowBlur = 0;
       }
     };
 
@@ -199,14 +200,14 @@ export default function SignalCanvas({
           for (let i = 0; i < gsrBuf.length; i++) {
             norm.push(((gsrBuf.at(i) - gsrMin) / span) * 0.9);
           }
-          drawTrace(norm, GSR_COLOR, baseY, scale, variant === 'hero' ? 1.6 : 1.2, 10);
+          drawTrace(norm, GSR_COLOR, baseY, scale, variant === 'hero' ? 1.6 : 1.2);
         }
       }
 
       if (chans.includes('hr')) {
         const baseY = showBoth ? h * 0.42 : h * 0.55;
         const scale = showBoth ? h * 0.3 : h * 0.36;
-        drawTrace(hrBuf, HR_COLOR, baseY, scale, variant === 'hero' ? 1.9 : 1.4, variant === 'ambient' ? 8 : 16);
+        drawTrace(hrBuf, HR_COLOR, baseY, scale, variant === 'hero' ? 1.9 : 1.4);
       }
     };
 

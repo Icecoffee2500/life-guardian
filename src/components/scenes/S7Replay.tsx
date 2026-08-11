@@ -104,9 +104,7 @@ export default function S7Replay({ progress }: { progress: number }) {
   return (
     <SceneShell align="stretch" className="px-6 sm:px-12">
       <div className="mx-auto flex h-full w-full max-w-5xl flex-col justify-center py-20">
-        <p className="shrink-0 text-center text-[11px] tracking-[0.2em] text-paper-mute">
-          오늘 당신의 몸이 지나온 길
-        </p>
+        <p className="t-label shrink-0 text-center">오늘 당신의 몸이 지나온 길</p>
 
         <div className="mt-10 h-[clamp(9rem,26vh,14rem)] shrink-0">
           <SessionTimeline progress={progress} className="h-full w-full" />
@@ -121,7 +119,7 @@ export default function S7Replay({ progress }: { progress: number }) {
                 animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
                 exit={{ opacity: 0, y: -6, filter: 'blur(4px)' }}
                 transition={{ duration: 0.7, ease: [0.22, 0.61, 0.36, 1] }}
-                className="max-w-xl text-balance text-center text-[clamp(0.95rem,2vw,1.25rem)] font-light text-paper"
+                className="t-title max-w-xl text-balance text-center text-ink"
               >
                 {shown.text}
               </motion.p>
@@ -130,7 +128,7 @@ export default function S7Replay({ progress }: { progress: number }) {
         </div>
 
         <motion.p
-          className="mt-6 shrink-0 text-center text-[11px] tracking-[0.14em] text-paper-mute"
+          className="t-label mt-6 shrink-0 text-center"
           animate={{ opacity: [0.35, 0.8, 0.35] }}
           transition={{ duration: 2.8, repeat: Infinity, ease: 'easeInOut' }}
         >

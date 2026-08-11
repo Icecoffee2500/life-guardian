@@ -105,13 +105,24 @@ Chrome 계열 브라우저를 쓴다.
 > 전극을 끼고 30초 안정 → 갑자기 크게 숨을 들이쉰다 → 1~3초 뒤 GSR 값이 **올라가야** 한다.
 > 내려가면 `src/lib/sensors/serial-gsr.ts`의 `GSR_POLARITY`를 `-1`로 바꾼다.
 
-### 시선 (WebGazer, 선택)
-```bash
-curl -L -o public/vendor/webgazer.js \
-  https://raw.githubusercontent.com/brownhci/WebGazer/master/dist/webgazer.js
-```
-파일이 없으면 포인터 프록시로 자동 폴백한다. WebGazer는 GPLv3이므로
-공모전 제출 시 라이선스를 확인할 것.
+### 시선 (웹캠 — 기기 없이 지금 됨)
+
+밴드·GSR과 달리 **시선은 웹캠만 있으면 바로 측정된다.** 그래서 signalMode와 분리했다.
+
+체험 화면 S1에서 **웹캠 켜기** → 9점 보정(약 30초) → 이후 시선이 진짜 눈에서 나온다.
+보정을 건너뛰거나 웹캠을 거부하면 포인터 프록시로 진행되고, 그때는 `gaze.quality`가
+`degraded`로 넘어가 해석이 시선 축을 단정하지 않는다.
+
+포인터 프록시의 한계를 분명히 해 둔다: 커서를 한쪽에 세워두면 **그 위치가 계속
+응시로 기록된다.** 실제로 보고 있지 않아도. 그래서 시선을 근거로 말하려면 웹캠 보정이 필요하다.
+
+라이브러리는 `npm install`된 webgazer를 빌드 직전에 `public/vendor/`로 복사한다
+(`scripts/vendor-webgazer.mjs`, `predev`/`prebuild`에서 자동 실행). CDN을 쓰지 않는다.
+
+> ⚠ **라이선스: WebGazer.js는 GPL-3.0-or-later다.**
+> 배포물에 포함되므로 공모전 제출 전에 반드시 검토할 것. 문제가 되면
+> `WebGazerSource`만 교체하면 된다 — `DataSource` 인터페이스 뒤에 있어서
+> 나머지 코드는 건드릴 필요가 없다.
 
 ## 부스 세팅 체크리스트
 

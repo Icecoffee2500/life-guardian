@@ -8,61 +8,42 @@ interface Props {
   sceneProgress: number;
 }
 
-const PHASES = [
-  { phase: 1, name: '측정 준비' },
-  { phase: 2, name: '이완' },
-  { phase: 3, name: '무의식 측정' },
-  { phase: 4, name: '해석' },
-] as const;
-
 /**
- * 상단 진행 레일.
+ * 상단 진행 표시.
  *
- * 숫자를 크게 띄우지 않는다. 지금 어디쯤인지 곁눈으로 알 수 있으면 충분하고,
- * 남은 시간을 강조하면 체험이 과제가 된다.
+ * "지금 어디쯤이고 얼마나 남았나"는 부스에서 가장 자주 나오는 질문이다.
+ * 이전 버전은 1px 선과 10px 글씨로 answered하는 척만 했다.
+ * 단계를 눈금으로 세워 몇 개 중 몇 번째인지 세지 않고도 보이게 한다.
  */
 export default function ProgressRail({ scene, sceneProgress }: Props) {
   const idx = SCENES.findIndex((s) => s.id === scene);
   const current = SCENES[Math.max(0, idx)];
-  const overall = (Math.max(0, idx) + Math.min(1, sceneProgress)) / SCENES.length;
 
   return (
-    <div className="pointer-events-none absolute inset-x-0 top-0 z-30 select-none">
-      <div className="flex items-center justify-between px-6 pt-5 pb-3 sm:px-10">
-        <span className="text-[10px] font-medium uppercase tracking-[0.22em] text-paper-mute">
-          Life Guardian
-        </span>
-        <div className="flex items-center gap-4">
-          {PHASES.map((p) => (
-            <span
-              key={p.phase}
-              className={`hidden text-[10px] tracking-[0.16em] transition-colors duration-700 sm:inline ${
-                p.phase === current.phase ? 'text-paper-dim' : 'text-paper-mute/45'
-              }`}
-            >
-              {p.name}
-            </span>
-          ))}
-          <span className="tnum text-[10px] tracking-[0.16em] text-paper-mute">
-            {String(Math.max(1, idx + 1)).padStart(2, '0')} / {SCENES.length}
+    <header className="pointer-events-none absolute inset-x-0 top-0 z-30 select-none bg-surface/95 backdrop-blur-[2px]">
+      <div className="flex items-center justify-between gap-4 px-6 pt-4 pb-3 sm:px-10">
+        <span className="t-label text-ink-3">LIFE GUARDIAN</span>
+        <div className="flex items-baseline gap-3">
+          <span className="t-body-strong text-ink">{current.label}</span>
+          <span className="t-number text-[13px] text-ink-3">
+            {Math.max(1, idx + 1)} / {SCENES.length}
           </span>
         </div>
       </div>
-      <div className="relative h-px w-full bg-paper/8">
-        <div
-          className="absolute inset-y-0 left-0 bg-paper/55 transition-[width] duration-300 ease-linear"
-          style={{ width: `${overall * 100}%` }}
-        />
+
+      {/* 단계 눈금 — 지나온 칸은 채우고, 현재 칸만 진행도를 보여준다 */}
+      <div className="flex gap-1 px-6 pb-3 sm:px-10">
         {SCENES.map((s, i) => (
-          <span
-            key={s.id}
-            className={`absolute top-0 h-px w-px ${
-              i <= idx ? 'bg-paper/55' : 'bg-paper/20'
-            }`}
-            style={{ left: `${(i / SCENES.length) * 100}%` }}
-          />
+          <div key={s.id} className="h-1.5 flex-1 overflow-hidden rounded-[1px] bg-surface-sunken">
+            <div
+              className="h-full bg-ink transition-[width] duration-200 ease-linear"
+              style={{
+                width: i < idx ? '100%' : i === idx ? `${Math.min(1, sceneProgress) * 100}%` : '0%',
+              }}
+            />
+          </div>
         ))}
       </div>
-    </div>
+    </header>
   );
 }

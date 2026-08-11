@@ -5,35 +5,32 @@ import Link from 'next/link';
 import { motion } from 'motion/react';
 import SceneShell from './SceneShell';
 import Button from '@/components/ui/Button';
-import SignalCanvas from '@/components/SignalCanvas';
+import BioSigil from '@/components/experience/BioSigil';
+import { buildSigil } from '@/lib/interpret/sigil';
 import { RECOMMENDATION_KEYS } from '@/lib/interpret/schema';
 import { useSession } from '@/lib/session/store';
 
 /**
  * S8 — 결과.
  *
- * 여기서 처음이자 마지막으로 브랜드 블루가 나온다. 10분 내내 무채색으로 참았기 때문에
- * 이 한 번이 힘을 갖는다. 색을 아껴 쓴다는 건 이럴 때 쓰려고 아끼는 것이다.
+ * 이전 버전은 세로로 긴 문서였다. 부스에서 참가자가 스크롤을 내리는 순간
+ * "읽을거리"가 되고, 옆에서 기다리는 사람은 뭘 보고 있는지 알 수 없다.
+ * 그래서 **한 화면에 전부 넣는다.** 스크롤 없음이 제약이자 편집 원칙이다.
  *
- * 화면은 요약이고, 인쇄용 영수증은 /receipt/[sessionId]가 맡는다 (M4).
+ * 대신 순서대로 나타난다. 이름 → 관측 → 숨은 신호 → 제안 → 퀘스트.
+ * 한 번에 쏟지 않는 이유는 연출이 아니라 읽는 순서를 정해주기 위해서다.
  */
 
-const REVEAL = { duration: 0.9, ease: [0.22, 0.61, 0.36, 1] as const };
-
-/** 글자당 타이핑 간격(ms) — 읽히는 속도보다 아주 조금 느리게 */
-const TYPE_MS = 90;
+const EASE = [0.22, 0.61, 0.36, 1] as const;
+/** 글자당 타이핑 간격(ms) */
+const TYPE_MS = 85;
 
 /**
- * 페르소나명 타이핑 연출 (구현계획 3.2.1).
- *
- * 결과를 한 번에 쏟으면 텍스트 덤프가 된다. 이름은 이 체험이 참가자에게
- * 돌려주는 첫 마디라서, 한 글자씩 나오는 그 몇 초가 의미를 만든다.
- * 모션 민감 사용자에게는 타이핑 없이 즉시 보여준다.
+ * 페르소나명 타이핑 (구현계획 3.2.1).
+ * 이름은 이 체험이 참가자에게 돌려주는 첫 마디라서, 한 글자씩 나오는 몇 초가 의미를 만든다.
  */
 function useTypewriter(text: string): { shown: string; done: boolean } {
   const [state, setState] = useState({ key: text, n: 0 });
-
-  // 텍스트가 바뀌면 처음부터. 렌더 중 상태 조정 패턴.
   if (state.key !== text) setState({ key: text, n: 0 });
 
   useEffect(() => {
@@ -48,7 +45,6 @@ function useTypewriter(text: string): { shown: string; done: boolean } {
       );
       return () => clearTimeout(t);
     }
-
     const timer = setInterval(() => {
       setState((s) => {
         if (s.key !== text || s.n >= text.length) return s;
@@ -62,182 +58,173 @@ function useTypewriter(text: string): { shown: string; done: boolean } {
   return { shown: text.slice(0, n), done: n >= text.length };
 }
 
+function Block({
+  children,
+  delay,
+  className = '',
+}: {
+  children: React.ReactNode;
+  delay: number;
+  className?: string;
+}) {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.5, delay, ease: EASE }}
+      className={className}
+    >
+      {children}
+    </motion.div>
+  );
+}
+
 export default function S8Result() {
   const receipt = useSession((s) => s.receipt);
   const fallback = useSession((s) => s.receiptFallback);
   const sessionId = useSession((s) => s.sessionId);
   const nickname = useSession((s) => s.nickname);
   const reset = useSession((s) => s.reset);
+  const llmInput = useSession((s) => s.llmInput);
   const typed = useTypewriter(receipt?.persona_name ?? '');
+  const sigil = llmInput ? buildSigil(llmInput) : null;
 
   if (!receipt) {
     return (
       <SceneShell className="px-6">
-        <motion.p
-          className="text-[13px] font-light text-paper-dim"
-          animate={{ opacity: [0.4, 0.9, 0.4] }}
-          transition={{ duration: 2.4, repeat: Infinity }}
-        >
-          해석을 정리하고 있습니다
-        </motion.p>
+        <div className="flex flex-col items-center gap-4">
+          <div className="h-1.5 w-40 overflow-hidden rounded-[1px] bg-surface-sunken">
+            <motion.div
+              className="h-full w-1/3 bg-ink"
+              animate={{ x: ['-100%', '300%'] }}
+              transition={{ duration: 1.4, repeat: Infinity, ease: 'easeInOut' }}
+            />
+          </div>
+          <p className="t-body text-ink-2">해석을 정리하고 있습니다</p>
+        </div>
       </SceneShell>
     );
   }
 
+  const hf = receipt.hidden_finding;
+
   return (
-    <SceneShell align="stretch" className="overflow-y-auto px-6 sm:px-10">
-      <div className="mx-auto w-full max-w-2xl py-24">
-        {/* 헤드라인 */}
-        <motion.div
-          initial={{ opacity: 0, y: 12 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={REVEAL}
-          className="text-center"
-        >
-          <p className="text-[10px] tracking-[0.24em] text-paper-mute">
-            {nickname ? `${nickname} 님의` : '오늘의'} BIO-RECEIPT
-          </p>
-          <h1
-            className="scene-title mt-5 text-[clamp(1.9rem,5vw,3rem)]"
-            style={{ color: 'var(--color-paper)' }}
-            aria-label={receipt.persona_name}
-          >
+    <SceneShell align="stretch" className="px-5 sm:px-8">
+      {/* 한 화면 안에 다 들어가야 한다. 넘치면 줄이는 게 아니라 편집이 잘못된 것이다. */}
+      <div className="mx-auto flex h-full w-full max-w-5xl flex-col justify-center gap-5 py-20">
+        {/* 이름 + 시길 */}
+        <Block delay={0} className="flex shrink-0 items-center justify-center gap-6 sm:gap-10">
+          {sigil?.measured && (
+            <div className="hidden shrink-0 sm:block">
+              <BioSigil sigil={sigil} size={132} animate />
+            </div>
+          )}
+          <div className="min-w-0 text-center sm:text-left">
+          <p className="t-label">{nickname ? `${nickname} 님의 관측` : '오늘의 관측'}</p>
+          <h1 className="t-display mt-2 text-ink" aria-label={receipt.persona_name}>
             <span aria-hidden>{typed.shown}</span>
-            {/* 커서는 타이핑이 끝나면 사라진다 — 계속 깜빡이면 입력창처럼 보인다 */}
             {!typed.done && (
               <span
                 aria-hidden
-                className="ml-1 inline-block h-[0.9em] w-[2px] translate-y-[0.06em] bg-paper/70 align-middle"
+                className="ml-1 inline-block h-[0.85em] w-[3px] translate-y-[0.05em] bg-ink align-middle"
                 style={{ animation: 'caret-blink 1s steps(1,end) infinite' }}
               />
             )}
           </h1>
           <motion.p
-            className="mt-4 text-[clamp(0.95rem,2vw,1.15rem)] font-light text-brand"
+            className="t-title mt-2 text-brand"
             initial={{ opacity: 0 }}
             animate={{ opacity: typed.done ? 1 : 0 }}
-            transition={{ duration: 0.8, ease: [0.22, 0.61, 0.36, 1] }}
+            transition={{ duration: 0.5 }}
           >
             {receipt.one_liner}
           </motion.p>
-        </motion.div>
+          </div>
+        </Block>
 
-        {/* 심박 한 줄 — 이 결과가 몸에서 나왔다는 표시 */}
-        <motion.div
-          className="mx-auto mt-10 h-10 w-full max-w-sm opacity-70"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 0.7 }}
-          transition={{ ...REVEAL, delay: 0.3 }}
-        >
-          <SignalCanvas variant="strip" channels={['hr']} className="h-full w-full" speed={44} />
-        </motion.div>
+        {/* 관측 + 숨은 신호 */}
+        <div className="grid min-h-0 shrink-0 gap-4 lg:grid-cols-[1.15fr_1fr]">
+          <Block delay={0.5} className="panel p-5">
+            <p className="t-label">몸이 먼저 말한 것</p>
+            <ul className="mt-3 space-y-2.5">
+              {receipt.unconscious_summary.map((s, i) => (
+                <li key={s} className="flex gap-3">
+                  <span className="t-number shrink-0 text-[13px] text-ink-3">
+                    {String(i + 1).padStart(2, '0')}
+                  </span>
+                  <span className="t-body text-ink">{s}</span>
+                </li>
+              ))}
+            </ul>
+          </Block>
 
-        {/* 무의식 요약 */}
-        <motion.ul
-          className="mt-14 space-y-4"
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ ...REVEAL, delay: 0.45 }}
-        >
-          {receipt.unconscious_summary.map((s, i) => (
-            <li key={s} className="flex gap-4">
-              <span className="tnum mt-1 shrink-0 text-[10px] tracking-[0.1em] text-paper-mute">
-                {String(i + 1).padStart(2, '0')}
-              </span>
-              <span className="text-[14.5px] font-light leading-[1.75] text-paper">{s}</span>
-            </li>
-          ))}
-        </motion.ul>
-
-        {/* 숨은 발견 — 이 체험의 핵심. 있을 때만 나온다. */}
-        {receipt.hidden_finding && (
-          <motion.div
-            className="mt-12 rounded-2xl border border-paper/10 bg-ink-900 p-6"
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ ...REVEAL, delay: 0.6 }}
-          >
-            <div className="flex items-baseline justify-between">
-              <span className="text-[10px] tracking-[0.2em] text-paper-mute">나도 몰랐던 나</span>
-              <span className="text-[10px] tracking-[0.1em] text-paper-mute">
-                확신 {receipt.hidden_finding.confidence}
-              </span>
-            </div>
-            <p className="mt-4 text-[14.5px] font-light leading-[1.75] text-paper">
-              {receipt.hidden_finding.observation}
-            </p>
-            <p className="mt-2 text-[13px] font-light leading-[1.75] text-paper-dim">
-              {receipt.hidden_finding.reading}
-            </p>
-          </motion.div>
-        )}
-
-        {/* 추천 */}
-        <motion.div
-          className="mt-12 divide-y divide-paper/8 overflow-hidden rounded-2xl border border-paper/8"
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ ...REVEAL, delay: 0.75 }}
-        >
-          {RECOMMENDATION_KEYS.map((key) => {
-            const items = receipt.recommendations[key];
-            if (!items?.length) return null;
-            return (
-              <div key={key} className="flex gap-5 px-5 py-4">
-                <span className="w-14 shrink-0 pt-0.5 text-[11px] tracking-[0.14em] text-paper-mute">
-                  {key}
-                </span>
-                <div className="min-w-0 flex-1 space-y-2.5">
-                  {items.map((it) => (
-                    <div key={it.name}>
-                      <div className="text-[14px] font-light text-paper">{it.name}</div>
-                      <div className="mt-0.5 text-[11.5px] leading-relaxed text-paper-mute">
-                        {it.why}
-                      </div>
-                    </div>
-                  ))}
+          <Block delay={0.75} className="min-h-0">
+            {hf ? (
+              /* 이 체험의 이름값을 하는 자리. 반전 면으로 확실히 분리한다. */
+              <div className="flex h-full flex-col rounded-[4px] bg-surface-inverse p-5 text-ink-on-inverse">
+                <div className="flex items-baseline justify-between">
+                  <p className="t-label" style={{ color: 'rgba(242,241,237,0.72)' }}>
+                    나도 몰랐던 나
+                  </p>
+                  <span className="t-label" style={{ color: 'rgba(242,241,237,0.72)' }}>
+                    확신 {hf.confidence}
+                  </span>
                 </div>
+                <p className="t-body-strong mt-3">{hf.observation}</p>
+                <p className="t-body mt-2" style={{ color: 'rgba(242,241,237,0.78)' }}>
+                  {hf.reading}
+                </p>
               </div>
-            );
-          })}
-        </motion.div>
+            ) : (
+              <div className="panel flex h-full flex-col justify-center p-5">
+                <p className="t-label">나도 몰랐던 나</p>
+                <p className="t-body mt-3 text-ink-2">
+                  오늘은 말과 몸이 크게 어긋난 지점이 없었습니다. 없는 불일치를 만들어 말하지
+                  않습니다.
+                </p>
+              </div>
+            )}
+          </Block>
+        </div>
 
-        {/* 튜닝 퀘스트 */}
-        <motion.div
-          className="mt-12 text-center"
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ ...REVEAL, delay: 0.9 }}
-        >
-          <span className="text-[10px] tracking-[0.2em] text-paper-mute">오늘의 튜닝 퀘스트</span>
-          <p className="mt-4 text-balance text-[clamp(1rem,2.2vw,1.3rem)] font-light leading-relaxed text-paper">
-            {receipt.tuning_quest}
-          </p>
-        </motion.div>
+        {/* 제안 — 4칸 한 줄 */}
+        <Block delay={1} className="shrink-0">
+          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+            {RECOMMENDATION_KEYS.map((key) => {
+              const it = receipt.recommendations[key]?.[0];
+              if (!it) return null;
+              return (
+                <div key={key} className="panel p-4">
+                  <p className="t-label">{key}</p>
+                  <p className="t-body-strong mt-1.5 text-ink">{it.name}</p>
+                  <p className="mt-1 text-[13px] leading-snug text-ink-3">{it.why}</p>
+                </div>
+              );
+            })}
+          </div>
+        </Block>
 
-        {/* 꼬리말 */}
-        <motion.div
-          className="mt-16 flex flex-col items-center gap-5 border-t border-paper/8 pt-8"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ ...REVEAL, delay: 1.05 }}
-        >
-          <p className="text-center text-[11px] leading-relaxed text-paper-mute">
-            {receipt.disclaimer}
+        {/* 퀘스트 + 조작 */}
+        <Block delay={1.25} className="shrink-0">
+          <div className="flex flex-col items-center gap-4 border-t border-line pt-5 sm:flex-row sm:justify-between">
+            <div className="min-w-0 text-center sm:text-left">
+              <p className="t-label">오늘의 튜닝 퀘스트</p>
+              <p className="t-title mt-1 text-ink">{receipt.tuning_quest}</p>
+            </div>
+            <div className="flex shrink-0 items-center gap-2">
+              <Link href={`/receipt/${sessionId}`}>
+                <Button size="lg">영수증 받기</Button>
+              </Link>
+              <Button variant="secondary" onClick={reset}>
+                처음으로
+              </Button>
+            </div>
+          </div>
+          <p className="t-label mt-3 text-center sm:text-left">
+            {receipt.disclaimer} · {sessionId}
+            {fallback && ' · 규칙 기반 해석'}
           </p>
-          <div className="flex items-center gap-3 text-[10px] tracking-[0.14em] text-paper-mute/70">
-            <span className="tnum">{sessionId}</span>
-            {fallback && <span>· 규칙 기반 해석</span>}
-          </div>
-          <div className="mt-2 flex items-center gap-2">
-            <Link href={`/receipt/${sessionId}`}>
-              <Button variant="primary">영수증 받기</Button>
-            </Link>
-            <Button variant="ghost" onClick={reset}>
-              처음으로
-            </Button>
-          </div>
-        </motion.div>
+        </Block>
       </div>
     </SceneShell>
   );

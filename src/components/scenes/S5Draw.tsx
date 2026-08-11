@@ -34,8 +34,7 @@ interface LivePoint {
 /**
  * S5 — 그림 세션.
  *
- * 어두운 화면에 밝은 선으로 그린다. 흰 종이를 흉내 내면 이 체험만 갑자기
- * 다른 앱이 되어버린다. 여기서 그림은 "빛으로 남기는 흔적"이다.
+ * 밝은 캔버스에 짙은 잉크색 선으로 그린다.
  *
  * 기록하는 것은 결과 이미지가 아니라 과정이다 — 착수 지연, 필압, 획 순서, 수정 횟수.
  * 그래서 모든 점에 세션 시각이 붙는다.
@@ -96,7 +95,7 @@ export default function S5Draw({
         if (pts.length === 1) {
           ctx.beginPath();
           ctx.arc(pts[0].x * w, pts[0].y * h, 1.2 + pts[0].p * 2.2, 0, Math.PI * 2);
-          ctx.fillStyle = `rgba(236,233,227,${alpha})`;
+          ctx.fillStyle = `rgba(22,22,26,${alpha})`;
           ctx.fill();
         }
         return;
@@ -109,16 +108,13 @@ export default function S5Draw({
         ctx.moveTo(a.x * w, a.y * h);
         ctx.lineTo(b.x * w, b.y * h);
         ctx.lineWidth = 1 + ((a.p + b.p) / 2) * 4.2;
-        ctx.strokeStyle = `rgba(236,233,227,${alpha})`;
+        ctx.strokeStyle = `rgba(22,22,26,${alpha})`;
         ctx.stroke();
       }
     };
 
-    ctx.shadowColor = 'rgba(236,233,227,0.35)';
-    ctx.shadowBlur = 6;
     for (const s of strokesRef.current) paint(s.points, 0.88);
     if (currentRef.current) paint(currentRef.current, 0.95);
-    ctx.shadowBlur = 0;
   }, []);
 
   const resize = useCallback(() => {
@@ -346,14 +342,12 @@ export default function S5Draw({
             transition={{ duration: 0.6, ease: [0.22, 0.61, 0.36, 1] }}
             className="shrink-0 text-center"
           >
-            <h2 className="scene-title text-[clamp(1.15rem,2.6vw,1.7rem)] text-paper">
-              {copy.title}
-            </h2>
-            <p className="mt-2 text-[12px] font-light text-paper-mute">{copy.hint}</p>
+            <h2 className="t-display text-ink">{copy.title}</h2>
+            <p className="t-body mt-2 text-ink-2">{copy.hint}</p>
           </motion.div>
         </AnimatePresence>
 
-        <div className="relative mt-7 min-h-0 flex-1 overflow-hidden rounded-2xl border border-paper/8 bg-ink-900">
+        <div className="relative mt-7 min-h-0 flex-1 overflow-hidden rounded-2xl border border-line bg-surface-raised">
           <canvas
             ref={canvasRef}
             className="h-full w-full touch-none"
@@ -366,7 +360,7 @@ export default function S5Draw({
           />
           {!hasInk && (
             <motion.span
-              className="pointer-events-none absolute inset-0 flex items-center justify-center text-[12px] font-light tracking-[0.1em] text-paper-mute/60"
+              className="t-label pointer-events-none absolute inset-0 flex items-center justify-center"
               animate={{ opacity: [0.4, 0.85, 0.4] }}
               transition={{ duration: 3.4, repeat: Infinity, ease: 'easeInOut' }}
             >
@@ -378,18 +372,14 @@ export default function S5Draw({
         <div className="mt-5 flex shrink-0 items-center justify-between">
           <div className="flex items-center gap-3">
             <TimeRing progress={progress} size={34} />
-            <span className="tnum text-[11px] font-light text-paper-mute">{remaining}초</span>
-            {undos > 0 && (
-              <span className="text-[10px] tracking-[0.1em] text-paper-mute/70">
-                수정 {undos}회
-              </span>
-            )}
+            <span className="t-number text-ink-2">{remaining}초</span>
+            {undos > 0 && <span className="t-label">수정 {undos}회</span>}
           </div>
           <div className="flex items-center gap-1">
-            <Button variant="ghost" onClick={undo} disabled={!strokeCount}>
+            <Button variant="secondary" onClick={undo} disabled={!strokeCount}>
               되돌리기
             </Button>
-            <Button variant="ghost" onClick={() => advanceRef.current()}>
+            <Button variant="primary" onClick={() => advanceRef.current()}>
               다 그렸어요
             </Button>
           </div>

@@ -60,12 +60,13 @@ await page.getByText(/압축 체험/).click();
 await wait(400);
 await page.getByRole('button', { name: '시작하기' }).click();
 
-// S1 — 연결
+// S1 — 연결 (이제 자동으로 넘어가지 않는다)
 await until('S1');
 await wait(1200);
 await shot('S1-connecting');
 await wait(2600);
 await shot('S1-connected');
+await page.getByRole('button', { name: '측정 시작' }).click();
 
 // S2 — 호흡 가이드
 await until('S2');

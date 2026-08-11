@@ -37,7 +37,7 @@ export default function S0Intro({ onStart }: { onStart: () => void }) {
         />
 
         <motion.h1
-          className="scene-title text-balance text-center text-[clamp(2rem,5.4vw,3.9rem)]"
+          className="t-display text-balance text-center text-ink text-[clamp(2rem,5.4vw,3.9rem)]"
           animate={{ opacity: [0.82, 1, 0.86, 0.82] }}
           transition={{ duration: 1.15, repeat: Infinity, ease: 'easeInOut' }}
         >
@@ -47,7 +47,7 @@ export default function S0Intro({ onStart }: { onStart: () => void }) {
         </motion.h1>
 
         <motion.p
-          className="mt-7 max-w-md text-center text-[13.5px] font-light leading-[1.85] text-paper-dim"
+          className="t-body mt-7 max-w-md text-center text-ink-2"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ delay: 0.9, duration: 1.2 }}
@@ -63,21 +63,32 @@ export default function S0Intro({ onStart }: { onStart: () => void }) {
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 1.4, duration: 1 }}
         >
+          {/*
+            밑줄만 있던 입력창은 "여기 누를 수 있다"는 신호가 약했다.
+            테두리를 있는 그대로 그려서 입력 가능한 영역임을 명확히 하고,
+            글자는 16px 이상으로 — 모바일 사파리는 16px 미만 입력창에 포커스가 가면 확대를 건다.
+          */}
           <input
             value={nickname}
             onChange={(e) => setNickname(e.target.value.slice(0, 12))}
             placeholder="닉네임 (선택)"
-            className="w-full border-b border-paper/12 bg-transparent pb-2.5 text-center text-[15px] font-light text-paper placeholder:text-paper-mute focus:border-paper/35 focus:outline-none"
+            className="w-full rounded-[4px] border border-line-strong bg-surface-raised px-4 py-3 text-center text-base text-ink placeholder:text-ink-3 focus:outline-none"
             aria-label="닉네임"
           />
 
-          <div className="mt-8 flex items-center justify-center gap-1 rounded-full border border-paper/10 p-1">
+          {/*
+            토글은 지금 선택된 쪽이 눈에 보여야 조작 가능한 통제로 읽힌다.
+            선택됨 = 반전 면(bg-surface-inverse), 선택 안 됨 = 테두리만 — 둘 다 버튼처럼 생기게 한다.
+          */}
+          <div className="mt-8 flex items-center justify-center gap-2">
             {(['full', 'compact'] as const).map((m) => (
               <button
                 key={m}
                 onClick={() => setMode(m)}
-                className={`flex-1 rounded-full px-4 py-2 text-[11px] tracking-[0.12em] transition-colors duration-500 ${
-                  mode === m ? 'bg-paper/[0.09] text-paper' : 'text-paper-mute hover:text-paper-dim'
+                className={`flex-1 rounded-full px-4 py-2.5 text-[13px] font-semibold tracking-[0.01em] transition-colors duration-300 ${
+                  mode === m
+                    ? 'bg-surface-inverse text-ink-on-inverse'
+                    : 'border border-line-strong text-ink-2 hover:bg-surface-sunken'
                 }`}
               >
                 {modeLabel(m)}
@@ -98,7 +109,7 @@ export default function S0Intro({ onStart }: { onStart: () => void }) {
         >
           <button
             onClick={() => setShowEthics((v) => !v)}
-            className="text-[11px] tracking-[0.1em] text-paper-mute underline-offset-4 hover:text-paper-dim hover:underline"
+            className="t-label underline-offset-4 hover:underline"
           >
             이 체험은 상담도 진단도 아닙니다
           </button>
@@ -106,7 +117,7 @@ export default function S0Intro({ onStart }: { onStart: () => void }) {
             <motion.ul
               initial={{ opacity: 0, height: 0 }}
               animate={{ opacity: 1, height: 'auto' }}
-              className="mt-4 max-w-md space-y-1.5 overflow-hidden text-[11.5px] leading-relaxed text-paper-mute"
+              className="t-body mt-4 max-w-md space-y-1.5 overflow-hidden text-ink-2"
             >
               {ETHICS_GUARDRAILS.map((g) => (
                 <li key={g} className="flex gap-2">

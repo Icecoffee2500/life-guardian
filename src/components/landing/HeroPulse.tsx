@@ -58,11 +58,14 @@ export default function HeroPulse() {
 
       const baseY = h * 0.5;
       const amp = h * 0.3;
+      // 밝은 바탕에서는 흐린 선이 묻힌다. 검은 배경용 저채도 값 대신
+      // 심박 색(--color-hr)을 진하게 써서 알파를 올린다. 글로우는 어두운
+      // 배경에서만 통하는 효과라 밝은 종이 위에서는 얼룩으로 보여 제거한다.
       const grad = ctx.createLinearGradient(0, 0, w, 0);
-      grad.addColorStop(0, 'rgba(242,112,78,0)');
-      grad.addColorStop(0.28, 'rgba(242,112,78,0.16)');
-      grad.addColorStop(0.72, 'rgba(242,112,78,0.16)');
-      grad.addColorStop(1, 'rgba(242,112,78,0)');
+      grad.addColorStop(0, 'rgba(217,66,21,0)');
+      grad.addColorStop(0.28, 'rgba(217,66,21,0.3)');
+      grad.addColorStop(0.72, 'rgba(217,66,21,0.3)');
+      grad.addColorStop(1, 'rgba(217,66,21,0)');
 
       ctx.beginPath();
       for (let x = 0; x <= w; x += 1) {
@@ -75,10 +78,7 @@ export default function HeroPulse() {
       ctx.strokeStyle = grad;
       ctx.lineWidth = 1.2;
       ctx.lineJoin = 'round';
-      ctx.shadowColor = 'rgba(242,112,78,0.28)';
-      ctx.shadowBlur = 14;
       ctx.stroke();
-      ctx.shadowBlur = 0;
     };
 
     raf = requestAnimationFrame(draw);

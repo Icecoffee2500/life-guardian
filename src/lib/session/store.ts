@@ -24,6 +24,17 @@ import type { BioReceipt } from '@/lib/interpret/schema';
  */
 export type SignalMode = 'demo' | 'auto' | 'live';
 
+/**
+ * 시선을 무엇으로 받을 것인가. 생체신호 모드와 독립이다.
+ *
+ * 밴드·GSR은 기기가 있어야 하지만 **시선은 웹캠만 있으면 지금 당장 된다.**
+ * 그래서 signalMode에 묶지 않고 따로 뺐다 — 데모 모드에서도 진짜 시선을 쓸 수 있어야 한다.
+ *
+ * - pointer : 마우스 위치를 시선으로 간주. 설정 불필요, 대신 커서를 세워두면 그대로 기록된다
+ * - webcam  : WebGazer 웹캠 추적. 권한과 9점 보정이 필요하고, 그만큼 진짜 시선이다
+ */
+export type GazeMode = 'pointer' | 'webcam';
+
 export type SessionStatus = 'idle' | 'running' | 'paused' | 'aborted' | 'done';
 
 export interface SessionState {
@@ -32,6 +43,9 @@ export interface SessionState {
   mode: ExperienceMode;
   signalMode: SignalMode;
   personaId: PersonaId;
+  gazeMode: GazeMode;
+  /** 웹캠 시선 보정을 마쳤는가 */
+  gazeCalibrated: boolean;
   scene: SceneId;
   /** 현재 씬에 진입한 세션 시각(ms) */
   sceneStartedAt: number;
@@ -52,6 +66,8 @@ export interface SessionState {
   setMode: (v: ExperienceMode) => void;
   setSignalMode: (v: SignalMode) => void;
   setPersona: (v: PersonaId) => void;
+  setGazeMode: (v: GazeMode) => void;
+  setGazeCalibrated: (v: boolean) => void;
   setConsented: (v: boolean) => void;
   setAlert: (v: string | null) => void;
   setLlmInput: (v: LlmInput | null) => void;
@@ -89,6 +105,8 @@ export const useSession = create<SessionState>((set, get) => ({
   mode: 'full',
   signalMode: 'demo',
   personaId: DEFAULT_PERSONA_ID,
+  gazeMode: 'pointer',
+  gazeCalibrated: false,
   scene: 'S0',
   sceneStartedAt: 0,
   status: 'idle',
@@ -103,6 +121,8 @@ export const useSession = create<SessionState>((set, get) => ({
   setMode: (v) => set({ mode: v }),
   setSignalMode: (v) => set({ signalMode: v }),
   setPersona: (v) => set({ personaId: v }),
+  setGazeMode: (v) => set({ gazeMode: v, gazeCalibrated: false }),
+  setGazeCalibrated: (v) => set({ gazeCalibrated: v }),
   setConsented: (v) => set({ consented: v }),
   setAlert: (v) => set({ alert: v }),
   setLlmInput: (v) => set({ llmInput: v }),

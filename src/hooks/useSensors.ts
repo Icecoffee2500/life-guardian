@@ -48,6 +48,25 @@ export async function connectLiveSource(kind: LiveDeviceKind): Promise<
 }
 
 /**
+ * 시선을 웹캠 추적으로 교체한다. **반드시 클릭 핸들러 안에서 호출한다.**
+ *
+ * getUserMedia 권한 프롬프트는 사용자 제스처에서 출발해야 제때 뜬다.
+ * 실패하면 포인터 프록시가 그대로 남아 체험이 끊기지 않는다.
+ */
+export async function connectWebcamGaze(): Promise<
+  { ok: true; source: WebGazerSource } | { ok: false; error: string }
+> {
+  try {
+    const src = new WebGazerSource();
+    await src.connect();
+    sensorHub.replaceGaze(src);
+    return { ok: true, source: src };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : '웹캠 시선 추적 실패' };
+  }
+}
+
+/**
  * 세션 전체 수명 동안 센서를 붙여 둔다.
  *
  * 씬 컴포넌트 안에서 이걸 호출하면 씬이 바뀌는 순간 신호가 끊긴다.
@@ -58,6 +77,17 @@ export function useSensorSetup(signalMode: SignalMode, personaId: PersonaId, ena
     if (!enabled) return;
 
     simulationRuntime.setPersona(personaId);
+
+    /**
+     * 시선 소스 선택.
+     *
+     * 웹캠 추적은 signalMode와 무관하게 켤 수 있다 — 밴드가 없어도 시선은 진짜일 수 있다.
+     * 다만 여기서 자동 연결하지는 않는다. getUserMedia는 사용자 제스처에서 시작해야
+     * 권한 프롬프트가 제때 뜨고, 보정도 참가자가 직접 해야 한다.
+     * 그래서 처음에는 포인터 프록시로 붙이고, S1에서 교체한다.
+     */
+    const makeGaze = () =>
+      signalMode === 'auto' ? new SimulatedGazeSource() : new MouseGazeSource();
 
     if (signalMode === 'live') {
       /*
@@ -74,7 +104,7 @@ export function useSensorSetup(signalMode: SignalMode, personaId: PersonaId, ena
        */
       const band = new SimulatedBandSource();
       const gsr = new SimulatedGsrSource();
-      const gaze = new MouseGazeSource();
+      const gaze = makeGaze();
       sensorHub.attachBio(band);
       sensorHub.attachBio(gsr);
       sensorHub.attachGaze(gaze);
@@ -86,7 +116,7 @@ export function useSensorSetup(signalMode: SignalMode, personaId: PersonaId, ena
       const gsr = new SimulatedGsrSource();
       // 가상 참가자 모드에서는 시선까지 시뮬레이터가 만든다.
       // 데모 모드에서는 관람자의 포인터가 시선 프록시가 된다.
-      const gaze = signalMode === 'auto' ? new SimulatedGazeSource() : new MouseGazeSource();
+      const gaze = makeGaze();
 
       sensorHub.attachBio(band);
       sensorHub.attachBio(gsr);
@@ -95,6 +125,8 @@ export function useSensorSetup(signalMode: SignalMode, personaId: PersonaId, ena
     }
 
     return () => sensorHub.detachAll();
+    // gazeMode는 의존성에 넣지 않는다 — 웹캠으로 바꾸는 것은 S1의 교체 경로이지
+    // 센서를 통째로 다시 붙일 일이 아니다(붙였다 떼면 지금까지의 신호가 날아간다).
   }, [enabled, signalMode, personaId]);
 }
 
