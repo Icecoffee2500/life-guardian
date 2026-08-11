@@ -189,6 +189,18 @@ export default function S4Gaze({
   const right = pair ? (flipped ? pair.a : pair.b) : null;
   const exposing = phase === 'expose' && !!pair;
 
+  /*
+    자극이 떠 있는 동안에는 시선 물방울을 감춘다.
+    방울이 보이면 사람은 자극이 아니라 방울을 쫓게 되고, 그러면 이 씬이 재는 값
+    ("어느 쪽을 먼저·오래 봤는가")이 통째로 무의미해진다.
+    응시점 구간에는 다시 나타나므로 "추적이 살아 있다"는 확인은 계속 된다.
+  */
+  const setStimulusExposing = useSession((s) => s.setStimulusExposing);
+  useEffect(() => {
+    setStimulusExposing(exposing);
+  }, [exposing, setStimulusExposing]);
+  useEffect(() => () => setStimulusExposing(false), [setStimulusExposing]);
+
   return (
     <SceneShell align="stretch" className="justify-center px-3 sm:px-10">
       {/* 시선 프록시 표식 — 존재를 알릴 만큼만, 방해하지 않을 만큼 흐리게 */}

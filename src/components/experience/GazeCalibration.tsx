@@ -3,6 +3,7 @@
 import { useCallback, useState } from 'react';
 import { CALIBRATION_POINTS, CLICKS_PER_POINT, type WebGazerSource } from '@/lib/sensors/webgazer';
 import Button from '@/components/ui/Button';
+import GazeCursor from './GazeCursor';
 
 /**
  * 9점 시선 보정.
@@ -46,6 +47,13 @@ export default function GazeCalibration({
 
   return (
     <div className="fixed inset-0 z-50 bg-surface">
+      {/*
+        보정 중에는 물방울을 항상 띄운다.
+        여기가 "웹캠이 정말로 내 눈을 보고 있는가"에 답하는 유일한 자리이고,
+        방울이 점 근처로 모여드는 걸 보면서 보정이 되고 있는지도 스스로 판단할 수 있다.
+        측정 구간이 아니라서 시선을 오염시킬 걱정도 없다.
+      */}
+      <GazeCursor visible />
       {/*
         안내와 조작 버튼은 점 사이의 빈 띠(24% / 73%)에 놓는다.
         보정점은 회귀를 위해 화면 가장자리(y=0.1 / 0.9)에 있어야 하는데,

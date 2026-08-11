@@ -69,6 +69,16 @@ export interface SessionState {
   receiptReason: string | null;
   /** 심장 소리를 켤 것인가 */
   soundOn: boolean;
+  /** 시선 물방울을 띄울 것인가 (웹캠 추적 중일 때만 의미가 있다) */
+  gazeCursor: boolean;
+  /**
+   * S4에서 자극이 노출 중인가.
+   *
+   * 이 구간에는 시선 표시를 감춘다. 화면에 방울이 떠 있으면 사람은 자극이 아니라
+   * 방울을 쫓고, 그러면 "어느 쪽을 오래 봤는가"가 통째로 무의미해진다.
+   * 측정을 보여주려다 측정을 망치는 셈이라, 여기서만은 숨기는 게 맞다.
+   */
+  stimulusExposing: boolean;
   /** 씬 완료 신호를 세는 카운터 — 하위 시퀀스가 끝났음을 알린다 */
   sceneNonce: number;
 
@@ -83,6 +93,8 @@ export interface SessionState {
   setLlmInput: (v: LlmInput | null) => void;
   setReceipt: (v: BioReceipt | null, fallback?: boolean, reason?: string | null) => void;
   setSoundOn: (v: boolean) => void;
+  setGazeCursor: (v: boolean) => void;
+  setStimulusExposing: (v: boolean) => void;
 
   begin: () => void;
   goTo: (scene: SceneId) => void;
@@ -128,6 +140,8 @@ export const useSession = create<SessionState>((set, get) => ({
   receiptFallback: false,
   receiptReason: null,
   soundOn: true,
+  gazeCursor: true,
+  stimulusExposing: false,
   sceneNonce: 0,
 
   setNickname: (v) => set({ nickname: v }),
@@ -142,6 +156,8 @@ export const useSession = create<SessionState>((set, get) => ({
   setReceipt: (v, fallback = false, reason = null) =>
     set({ receipt: v, receiptFallback: fallback, receiptReason: reason }),
   setSoundOn: (v) => set({ soundOn: v }),
+  setGazeCursor: (v) => set({ gazeCursor: v }),
+  setStimulusExposing: (v) => set({ stimulusExposing: v }),
 
   begin: () => {
     sessionClock.reset();
