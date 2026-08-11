@@ -28,6 +28,13 @@ export interface LiveMetrics {
   beatPhase: number;
   /** 마지막 박동 시각(ms) */
   lastBeatT: number | null;
+  /**
+   * 가장 최근 시선 좌표 (화면 정규 0~1). 아직 한 표본도 없으면 null.
+   *
+   * 기록은 recorder가 하고, 이건 **그리기 위한 값**이다.
+   * 시선 커서가 매 프레임 훑어 가므로 배열이 아니라 마지막 하나만 둔다.
+   */
+  gaze: { x: number; y: number; c: number; t: number } | null;
 }
 
 const EMPTY_METRICS: LiveMetrics = {
@@ -39,6 +46,7 @@ const EMPTY_METRICS: LiveMetrics = {
   settleTimeSec: null,
   beatPhase: 0,
   lastBeatT: null,
+  gaze: null,
 };
 
 /**
@@ -189,6 +197,7 @@ export class SensorHub {
 
   private onGaze(s: GazeSample): void {
     this.recorder.pushGaze(s.t, s.x, s.y, s.confidence);
+    this.metrics.gaze = { x: s.x, y: s.y, c: s.confidence, t: s.t };
   }
 
   private onBio(s: BioSample): void {

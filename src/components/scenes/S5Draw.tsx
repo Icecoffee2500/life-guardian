@@ -73,6 +73,11 @@ export default function S5Draw({
   const advanceRef = useRef<() => void>(() => {});
   const onProgressRef = useRef(onProgress);
   const pausedRef = useRef(paused);
+  /** 시간이 다 되면 저절로 넘어갈 것인가 — 무인 시연에서만 참 */
+  const autoAdvanceRef = useRef(signalMode === 'auto');
+  useEffect(() => {
+    autoAdvanceRef.current = signalMode === 'auto';
+  }, [signalMode]);
   useEffect(() => {
     onProgressRef.current = onProgress;
   }, [onProgress]);
@@ -206,7 +211,12 @@ export default function S5Draw({
         setProgress(p);
       }
       onProgressRef.current(Math.min(1, (done + Math.min(acc, limit)) / grand));
-      if (acc >= limit) {
+      /*
+        시간이 다 돼도 스스로 넘기지 않는다. 진행 고리만 다 채우고 기다린다 —
+        그림을 그리다 손이 끊기는 것만큼 이 체험의 인상을 망치는 게 없다.
+        넘어가는 건 '다 그렸어요'(advanceRef)로만 일어난다. 무인 시연은 예외다.
+      */
+      if (acc >= limit && autoAdvanceRef.current) {
         next();
         if (finished) return;
       }

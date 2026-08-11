@@ -2,7 +2,10 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { AnimatePresence } from 'motion/react';
+import GazeCursor from '@/components/experience/GazeCursor';
 import ProgressRail from '@/components/experience/ProgressRail';
+import SceneNav from '@/components/experience/SceneNav';
+import GazeCursorToggle from '@/components/experience/GazeCursorToggle';
 import SoundToggle from '@/components/experience/SoundToggle';
 import VitalsReadout from '@/components/experience/VitalsReadout';
 import S0Intro from '@/components/scenes/S0Intro';
@@ -41,10 +44,27 @@ export default function ExperiencePage() {
   const selfDriven = isSelfDriven(scene);
   const duration = selfDriven ? null : def.durationSec(mode);
 
-  const onDone = useCallback(() => advance(), [advance]);
-  const { progress } = useSceneTimer(duration, onDone, {
+  /*
+    자동 진행은 무인 시연(auto 모드)에서만 한다.
+
+    사람이 하는 체험에서는 시간이 다 돼도 화면이 저 혼자 넘어가지 않는다.
+    쫓기는 느낌은 그 자체로 각성을 만들고, 그 각성이 다음 씬의 측정에 그대로 실린다 —
+    즉 재촉은 취향 문제가 아니라 데이터 오염이다.
+  */
+  const autoAdvance = signalMode === 'auto';
+
+  /** 이 씬이 예정한 시간·시퀀스를 마쳤는가 (자기 운전 씬은 스스로 알려온다) */
+  const [sceneReady, setSceneReady] = useState(false);
+
+  const onDone = useCallback(() => {
+    if (autoAdvance) advance();
+    else setSceneReady(true);
+  }, [advance, autoAdvance]);
+
+  const { progress, complete } = useSceneTimer(duration, onDone, {
     paused: status === 'paused',
     key: `${scene}:${sceneNonce}`,
+    autoAdvance,
   });
 
   // 스스로 운전하는 씬은 진행도를 여기로 올려 보낸다 (상단 레일이 계속 살아 있도록).
@@ -55,11 +75,22 @@ export default function ExperiencePage() {
   if (sceneKey !== lastKey) {
     setLastKey(sceneKey);
     setSubProgress(0);
+    setSceneReady(false);
   }
   const railProgress = selfDriven ? subProgress : progress;
 
   // 진행자 화면으로 실황을 내보낸다 (같은 기기의 다른 창 + Supabase가 있으면 다른 기기)
   useSessionBroadcast(railProgress);
+
+  /*
+    시선 물방울 — 웹캠으로 보정까지 마쳤을 때만 뜬다.
+    포인터 프록시일 때 방울을 띄우면 "눈을 추적하고 있다"는 거짓말이 된다.
+  */
+  const gazeMode = useSession((s) => s.gazeMode);
+  const gazeCalibrated = useSession((s) => s.gazeCalibrated);
+  const gazeCursor = useSession((s) => s.gazeCursor);
+  const stimulusExposing = useSession((s) => s.stimulusExposing);
+  const gazeLive = gazeMode === 'webcam' && gazeCalibrated;
 
   /*
     심장 소리는 대화 씬에서만 재운다.
@@ -98,6 +129,8 @@ export default function ExperiencePage() {
     >
       {scene !== 'S0' && <ProgressRail scene={scene} sceneProgress={railProgress} />}
 
+      {gazeLive && <GazeCursor visible={gazeCursor && !stimulusExposing} />}
+
       <div className="absolute inset-0">
         {/* mode를 지정하지 않아 씬이 겹치며 교차한다 — 전환 중 검은 공백이 없다 */}
         <AnimatePresence>
@@ -114,11 +147,25 @@ export default function ExperiencePage() {
       </div>
 
       {scene !== 'S0' && (
-        <div className="pointer-events-none absolute inset-x-0 bottom-0 z-30 flex items-end justify-between px-6 pb-6 sm:px-10">
+        <div className="pointer-events-none absolute inset-x-0 bottom-0 z-30 flex flex-wrap items-end justify-between gap-x-6 gap-y-3 px-6 pb-6 sm:px-10">
           <VitalsReadout />
           <div className="flex items-center gap-4">
+            {gazeLive && <GazeCursorToggle />}
             {/* 소리를 재우는 씬에서는 스위치도 숨긴다 — '켜짐'인데 조용하면 고장으로 읽힌다 */}
             {soundActive && <SoundToggle />}
+            {/*
+              S1은 자기 화면 안에 '측정 시작'이 있고, S8은 영수증 버튼이 끝이다.
+              같은 일을 하는 버튼을 두 개 두지 않는다.
+            */}
+            {scene !== 'S1' && scene !== 'S8' && (
+              <SceneNav
+                onBack={back}
+                onNext={advance}
+                canBack
+                canNext
+                ready={selfDriven ? sceneReady : complete}
+              />
+            )}
             <span className="t-label">{def.label}</span>
           </div>
         </div>

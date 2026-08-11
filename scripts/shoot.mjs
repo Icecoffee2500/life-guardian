@@ -43,6 +43,13 @@ const shot = async (name) => {
 };
 const wait = (ms) => page.waitForTimeout(ms);
 const scene = () => page.locator('main[data-scene]').getAttribute('data-scene');
+/** 이 씬이 제 할 일을 마칠 때까지 기다렸다가 '다음'을 누른다.
+    시간이 지나도 저절로 넘어가지 않으므로(무인 시연 모드 제외) 눌러줘야 한다. */
+const next = async (timeout = 120000) => {
+  await page.waitForSelector('[data-scene-next][data-ready="true"]', { timeout });
+  await page.locator('[data-scene-next]').click();
+};
+
 /** 해당 씬에 들어올 때까지 기다린다 */
 const until = async (id, timeout = 90000) => {
   await page.waitForFunction(
@@ -74,6 +81,7 @@ await wait(2800);
 await shot('S2-breathing');
 await wait(8000);
 await shot('S2-late');
+await next();
 
 // S3 — 이완
 await until('S3');
@@ -81,6 +89,7 @@ await wait(2500);
 await shot('S3-calm');
 await wait(6000);
 await shot('S3-reveal');
+await next();
 
 // S4 — 시선
 await until('S4');
@@ -95,6 +104,7 @@ for (let i = 0; i < 4; i++) {
   await wait(2100);
 }
 await shot('S4-late');
+await next();
 
 // S5 — 그림
 await until('S5');
@@ -125,14 +135,36 @@ await shot('S5-drawn');
 await page.getByRole('button', { name: '다 그렸어요' }).click();
 await wait(1400);
 await shot('S5-future');
+// 두 번째 과제(10년 뒤)도 시간으로 끝나지 않는다
+await page.getByRole('button', { name: '다 그렸어요' }).click();
+await next();
 
-// S6 — 대화
+// S6 — 대화. 문항마다 '답변 완료'를 눌러야 넘어간다.
 await until('S6');
 await wait(1400);
 await shot('S6-reading');
 await wait(4500);
 await shot('S6-answering');
-await page.keyboard.press('ArrowRight');
+for (let i = 0; i < 8; i++) {
+  const btn = page.getByRole('button', { name: '답변 완료' });
+  if (!(await btn.isEnabled().catch(() => false))) {
+    // 아직 낭독 중이면 응답 구간이 열릴 때까지 기다린다
+    await btn.waitFor({ state: 'visible', timeout: 60000 }).catch(() => {});
+    await page.waitForFunction(
+      () => {
+        const b = [...document.querySelectorAll('button')].find((x) => x.textContent === '답변 완료');
+        return b instanceof HTMLButtonElement && !b.disabled;
+      },
+      null,
+      { timeout: 60000 },
+    ).catch(() => {});
+  }
+  if ((await scene()) !== 'S6') break;
+  await btn.click().catch(() => {});
+  await wait(900);
+  if ((await scene()) !== 'S6') break;
+}
+if ((await scene()) === 'S6') await next();
 
 // S7 — 예측 퀴즈 → 정답 공개 → 타임라인 리플레이
 await until('S7');
@@ -162,7 +194,7 @@ await page.waitForFunction(
 ).catch(() => {});
 await wait(2200);
 await shot('S7-timeline');
-await page.keyboard.press('ArrowRight');
+await next();
 await until('S8');
 await wait(1400);
 await shot('S8');

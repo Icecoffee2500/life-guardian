@@ -5,7 +5,7 @@ import { PhysiologyEngine } from './physiology';
 import { getPersona } from './personas';
 import { SensorHub } from './hub';
 import { SessionRecorder } from '@/lib/session/recorder';
-import type { BioSample, SourceKind, SourceMode } from './types';
+import type { BioSample, GazeSample, SourceKind, SourceMode } from './types';
 
 /** 테스트에서 임의의 샘플을 밀어 넣기 위한 소스 */
 class FeedSource extends BaseSource<BioSample> {
@@ -16,6 +16,19 @@ class FeedSource extends BaseSource<BioSample> {
     this.setStatus('streaming');
   }
   feed(s: BioSample): void {
+    this.push(s);
+  }
+}
+
+/** 시선 표본을 손으로 밀어 넣는 소스 */
+class ManualGazeSource extends BaseSource<GazeSample> {
+  readonly kind: SourceKind = 'gaze';
+  readonly mode: SourceMode = 'simulated';
+  readonly label = 'test-gaze';
+  async connect(): Promise<void> {
+    this.setStatus('streaming');
+  }
+  emit(s: GazeSample): void {
     this.push(s);
   }
 }
@@ -104,5 +117,25 @@ describe('실시간 지표', () => {
     expect(m.rmssd!).toBeLessThan(200);
     expect(m.gsr!).toBeGreaterThan(0.5);
     expect(m.gsr!).toBeLessThan(30);
+  });
+});
+
+describe('시선 좌표 노출', () => {
+  it('마지막 시선 표본이 metrics.gaze에 남는다 — 시선 커서가 이걸 읽는다', () => {
+    const rec = new SessionRecorder();
+    const hub = new SensorHub(rec, new ExperienceBus());
+    const gaze = new ManualGazeSource();
+    hub.attachGaze(gaze);
+
+    expect(hub.current().gaze).toBeNull();
+
+    gaze.emit({ t: 1000, x: 0.2, y: 0.8, confidence: 0.6 });
+    expect(hub.current().gaze).toEqual({ x: 0.2, y: 0.8, c: 0.6, t: 1000 });
+
+    gaze.emit({ t: 1040, x: 0.75, y: 0.3, confidence: 0.6 });
+    expect(hub.current().gaze).toEqual({ x: 0.75, y: 0.3, c: 0.6, t: 1040 });
+
+    // 기록은 그대로 쌓인다 — 커서용 값과 기록은 별개다
+    expect(rec.gaze).toHaveLength(2);
   });
 });
