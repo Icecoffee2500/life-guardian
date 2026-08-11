@@ -46,14 +46,23 @@ export default function GazeCalibration({
 
   return (
     <div className="fixed inset-0 z-50 bg-surface">
-      {/* 안내 — 화면 가운데 점과 겹치지 않게 위쪽에 */}
-      <div className="absolute inset-x-0 top-0 z-10 px-6 pt-10 text-center">
+      {/*
+        안내와 조작 버튼은 점 사이의 빈 띠(24% / 73%)에 놓는다.
+        보정점은 회귀를 위해 화면 가장자리(y=0.1 / 0.9)에 있어야 하는데,
+        예전처럼 안내를 top-0에, 버튼을 bottom-0에 두면 그 블록들이
+        위아래 점 여섯 개를 그대로 덮어 클릭을 먹어버린다.
+
+        위치를 옮겨도 짧은 화면에서는 다시 겹칠 수 있으므로,
+        두 블록 모두 pointer-events-none으로 클릭을 통과시키고
+        점을 z-20으로 올려 둔다. 겹쳐도 눌리는 쪽은 언제나 점이다.
+      */}
+      <div className="pointer-events-none absolute inset-x-0 top-[24%] z-10 -translate-y-1/2 px-6 text-center">
         <h2 className="t-title text-ink">점을 보면서, 그 점을 눌러주세요</h2>
-        <p className="t-body mx-auto mt-3 max-w-md text-ink-2">
+        <p className="t-body mx-auto mt-2 max-w-md text-ink-2">
           아홉 개의 점을 각각 다섯 번씩 누릅니다. 누를 때 시선도 그 점에 두어야 합니다.
-        </p>
-        <p className="t-number mt-4 text-[15px] text-ink">
-          {done} / {total}
+          <span className="t-number ml-3 text-[15px] text-ink">
+            {done} / {total}
+          </span>
         </p>
       </div>
 
@@ -66,9 +75,13 @@ export default function GazeCalibration({
             key={i}
             onClick={(e) => hit(i, e)}
             aria-label={`보정점 ${i + 1}, ${n}/${CLICKS_PER_POINT}`}
-            className="absolute flex h-14 w-14 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full transition-transform duration-150 active:scale-90"
+            /* z-20 — 안내 패널·버튼 바(z-10)보다 위에 있어야 겹친 자리에서도 눌린다 */
+            className="absolute z-20 flex h-14 w-14 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full transition-transform duration-150 active:scale-90"
             style={{ left: `${p.x * 100}%`, top: `${p.y * 100}%` }}
           >
+            {/* 글자 위에 겹쳐도 점이 읽히도록 불투명한 바탕을 깐다 */}
+            <span className="absolute inset-0 rounded-full bg-surface" />
+
             {/* 채워지는 정도가 곧 남은 횟수 — 숫자를 세지 않아도 보이게 */}
             <span
               className="absolute inset-0 rounded-full border-2"
@@ -88,11 +101,12 @@ export default function GazeCalibration({
         );
       })}
 
-      <div className="absolute inset-x-0 bottom-0 z-10 flex items-center justify-center gap-3 px-6 pb-10">
-        <Button onClick={onDone} disabled={!complete} size="lg">
+      {/* 바는 클릭을 통과시키고 버튼만 살린다 */}
+      <div className="pointer-events-none absolute inset-x-0 top-[73%] z-10 flex -translate-y-1/2 items-center justify-center gap-3 px-6">
+        <Button onClick={onDone} disabled={!complete} size="lg" className="pointer-events-auto">
           {complete ? '보정 완료' : `${total - done}번 더`}
         </Button>
-        <Button variant="quiet" onClick={onCancel}>
+        <Button variant="quiet" onClick={onCancel} className="pointer-events-auto">
           건너뛰고 포인터로 진행
         </Button>
       </div>
