@@ -31,6 +31,13 @@ export interface DrawTask {
   strokes: DrawStroke[];
   /** 되돌리기(지움) 횟수 */
   undos: number;
+  /**
+   * 필압의 출처.
+   * - pen   : 스타일러스의 실제 필압
+   * - proxy : 마우스·손가락. 속도에서 역산한 대체값이므로 해석 가중치를 낮춘다
+   * - auto  : 가상 참가자 자동 재현
+   */
+  pressureSource: 'pen' | 'proxy' | 'auto';
 }
 
 /** 대화 한 문항의 기록 */

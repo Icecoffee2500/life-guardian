@@ -1,7 +1,7 @@
 import { experienceBus, type ExperienceBus } from './bus';
 import type { BioSample, BioSource, GazeSample, GazeSource, SourceSnapshot } from './types';
 import { sessionRecorder, type SessionRecorder } from '@/lib/session/recorder';
-import { mean, rmssd, sd, slice, slope } from '@/lib/features/signal';
+import { mean, movingAverage, rmssd, sd, slice, slope } from '@/lib/features/signal';
 
 /** 화면에 실시간으로 보여줄 현재 상태 */
 export interface LiveMetrics {
@@ -35,12 +35,21 @@ const EMPTY_METRICS: LiveMetrics = {
 };
 
 /**
- * 안정 판정 기준 (구현계획.md S3):
- * 30초 창에서 심박 표준편차가 임계 미만이고 SCL 기울기가 거의 0.
+ * 안정 판정 기준 (구현계획.md S3).
+ *
+ * 주의: 심박의 **원시 표준편차**로 판정하면 안 된다.
+ * 호흡 가이드는 호흡성 동성부정맥(RSA)을 일부러 키우는 장치라서, 잘 따라올수록
+ * 원시 sd가 커진다. 그러면 "제일 잘 이완한 사람이 영영 안정 판정을 못 받는" 역설이 생긴다.
+ *
+ * 그래서 한 호흡 주기로 이동평균을 걸어 RSA를 걷어낸 뒤, 남은 **느린 추세**의
+ * 흔들림과 기울기만 본다. 여기서 평탄하다는 것은 각성이 더 이상 오르내리지 않는다는 뜻이다.
  */
-export const SETTLE_HR_SD_MAX = 3.4;
-export const SETTLE_SCL_SLOPE_MAX = 0.0000045; // µS/ms ≈ 0.27 µS/분
+export const SETTLE_TREND_SD_MAX = 1.25; // bpm
+export const SETTLE_HR_SLOPE_MAX = 0.00022; // bpm/ms ≈ 13 bpm/분
+export const SETTLE_SCL_SLOPE_MAX = 0.0000075; // µS/ms ≈ 0.45 µS/분
 export const SETTLE_WINDOW_MS = 20000;
+/** RSA를 걷어내기 위한 이동평균 창 — 한 호흡 주기보다 약간 길게 */
+export const SETTLE_SMOOTH_MS = 5000;
 
 /**
  * SensorHub — 여러 소스의 스트림을 하나로 통합하고, 파생 지표를 계산해 UI에 흘린다.
@@ -183,9 +192,19 @@ export class SensorHub {
     const gsrWin = slice(r.gsr, t - SETTLE_WINDOW_MS, t + 1);
     if (hrWin.length < 60 || gsrWin.length < 60) return;
 
-    const hrSd = sd(hrWin.map((p) => p.v));
+    // RSA를 걷어낸 느린 추세만 남긴다. 이동평균이 자리를 잡기 전 구간은 버린다.
+    const trend = movingAverage(hrWin, SETTLE_SMOOTH_MS).filter(
+      (p) => p.t - hrWin[0].t > SETTLE_SMOOTH_MS,
+    );
+    if (trend.length < 30) return;
+
+    const trendSd = sd(trend.map((p) => p.v));
+    const hrSlope = Math.abs(slope(trend));
     const sclSlope = Math.abs(slope(gsrWin));
-    const ok = hrSd < SETTLE_HR_SD_MAX && sclSlope < SETTLE_SCL_SLOPE_MAX;
+    const ok =
+      trendSd < SETTLE_TREND_SD_MAX &&
+      hrSlope < SETTLE_HR_SLOPE_MAX &&
+      sclSlope < SETTLE_SCL_SLOPE_MAX;
 
     if (ok) {
       if (this.settleSince === null) this.settleSince = t;

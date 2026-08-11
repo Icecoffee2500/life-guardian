@@ -57,8 +57,9 @@ describe('자극·문항 구성', () => {
 });
 
 describe('타이밍', () => {
-  it('시선 세션은 부록 A대로 쌍당 8초 (노출 6 + 응시점 2)', () => {
-    expect(gazeDurationSec('full')).toBe(12 * 8);
+  it('시선 세션은 부록 A대로 쌍당 8초 (노출 6 + 응시점 2) + 선행 응시점 2초', () => {
+    expect(gazeDurationSec('full')).toBe(2 + 12 * 8);
+    expect(gazeDurationSec('compact')).toBe(1 + 6 * 4);
   });
 
   it('그림 세션은 나무 90초 + 스케치 30초', () => {

@@ -57,7 +57,8 @@ export function dialogueTimingFor(mode: ExperienceMode) {
 
 export function gazeDurationSec(mode: ExperienceMode): number {
   const t = GAZE_TIMING[mode];
-  return pairsFor(mode).length * (t.exposureSec + t.fixationSec);
+  // 첫 자극 앞에도 응시점 구간을 한 번 둔다 (눈의 원점을 만들고 시작한다)
+  return t.fixationSec + pairsFor(mode).length * (t.exposureSec + t.fixationSec);
 }
 
 export function drawDurationSec(mode: ExperienceMode): number {
@@ -146,6 +147,20 @@ export const SCENES: SceneDef[] = [
 ];
 
 export const SCENE_ORDER: SceneId[] = SCENES.map((s) => s.id);
+
+/**
+ * 씬이 자기 타임라인을 직접 운전하는 구간.
+ *
+ * 시선·그림·대화는 내부에 하위 시퀀스(시행 12개, 과제 2개, 문항 5개)가 있고
+ * 낭독 길이나 "다 그렸어요" 같은 조기 종료가 섞인다. 바깥 타이머가 이들을 잘라내면
+ * 마지막 시행이 통째로 날아가므로, 이 씬들은 스스로 완료를 알린다.
+ * durationSec은 그대로 두어 전체 소요시간 추정에는 계속 쓴다.
+ */
+export const SELF_DRIVEN_SCENES: SceneId[] = ['S4', 'S5', 'S6'];
+
+export function isSelfDriven(id: SceneId): boolean {
+  return SELF_DRIVEN_SCENES.includes(id);
+}
 
 export function sceneDef(id: SceneId): SceneDef {
   return SCENES.find((s) => s.id === id) ?? SCENES[0];

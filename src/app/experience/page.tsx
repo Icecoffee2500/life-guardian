@@ -1,16 +1,21 @@
 'use client';
 
-import { useCallback, useEffect } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { AnimatePresence } from 'motion/react';
 import ProgressRail from '@/components/experience/ProgressRail';
 import VitalsReadout from '@/components/experience/VitalsReadout';
 import S0Intro from '@/components/scenes/S0Intro';
 import S1Connect from '@/components/scenes/S1Connect';
+import S2Baseline from '@/components/scenes/S2Baseline';
+import S3Calm from '@/components/scenes/S3Calm';
+import S4Gaze from '@/components/scenes/S4Gaze';
+import S5Draw from '@/components/scenes/S5Draw';
+import S6Dialogue from '@/components/scenes/S6Dialogue';
 import PlaceholderScene from '@/components/scenes/PlaceholderScene';
 import { useSceneTimer } from '@/hooks/useSceneTimer';
 import { useSensorSetup } from '@/hooks/useSensors';
 import { useSession } from '@/lib/session/store';
-import { sceneDef } from '@/lib/session/scenes';
+import { isSelfDriven, sceneDef } from '@/lib/session/scenes';
 
 export default function ExperiencePage() {
   const scene = useSession((s) => s.scene);
@@ -26,7 +31,8 @@ export default function ExperiencePage() {
   useSensorSetup(signalMode, personaId, scene !== 'S0');
 
   const def = sceneDef(scene);
-  const duration = def.durationSec(mode);
+  const selfDriven = isSelfDriven(scene);
+  const duration = selfDriven ? null : def.durationSec(mode);
 
   const onDone = useCallback(() => advance(), [advance]);
   const { progress, remaining } = useSceneTimer(duration, onDone, {
@@ -34,10 +40,24 @@ export default function ExperiencePage() {
     key: `${scene}:${sceneNonce}`,
   });
 
+  // 스스로 운전하는 씬은 진행도를 여기로 올려 보낸다 (상단 레일이 계속 살아 있도록).
+  // 씬이 바뀌면 렌더 중에 0으로 되돌린다 — 이전 씬의 100%가 한 프레임 남지 않게.
+  const sceneKey = `${scene}:${sceneNonce}`;
+  const [subProgress, setSubProgress] = useState(0);
+  const [lastKey, setLastKey] = useState(sceneKey);
+  if (sceneKey !== lastKey) {
+    setLastKey(sceneKey);
+    setSubProgress(0);
+  }
+  const railProgress = selfDriven ? subProgress : progress;
+
   // 진행자용 단축키: → 다음 씬, ← 이전 씬
   const back = useSession((s) => s.back);
   useEffect(() => {
     const h = (e: KeyboardEvent) => {
+      const el = document.activeElement;
+      // 입력 중에는 화살표가 커서 이동이어야 한다
+      if (el instanceof HTMLTextAreaElement || el instanceof HTMLInputElement) return;
       if (e.key === 'ArrowRight') advance();
       if (e.key === 'ArrowLeft') back();
     };
@@ -46,15 +66,25 @@ export default function ExperiencePage() {
   }, [advance, back]);
 
   return (
-    <main className="relative h-dvh w-full overflow-hidden bg-ink-950">
-      {scene !== 'S0' && <ProgressRail scene={scene} sceneProgress={progress} />}
+    // data-scene은 스크린샷 하네스와 진행자 디버깅용이다. 렌더에는 영향이 없다.
+    <main
+      data-scene={scene}
+      data-status={status}
+      className="relative h-dvh w-full overflow-hidden bg-ink-950"
+    >
+      {scene !== 'S0' && <ProgressRail scene={scene} sceneProgress={railProgress} />}
 
       <div className="absolute inset-0">
         {/* mode를 지정하지 않아 씬이 겹치며 교차한다 — 전환 중 검은 공백이 없다 */}
         <AnimatePresence>
           {scene === 'S0' && <S0Intro key="S0" onStart={begin} />}
           {scene === 'S1' && <S1Connect key="S1" onDone={advance} />}
-          {scene !== 'S0' && scene !== 'S1' && (
+          {scene === 'S2' && <S2Baseline key="S2" />}
+          {scene === 'S3' && <S3Calm key="S3" progress={progress} />}
+          {scene === 'S4' && <S4Gaze key="S4" onDone={onDone} onProgress={setSubProgress} />}
+          {scene === 'S5' && <S5Draw key="S5" onDone={onDone} onProgress={setSubProgress} />}
+          {scene === 'S6' && <S6Dialogue key="S6" onDone={onDone} onProgress={setSubProgress} />}
+          {(scene === 'S7' || scene === 'S8') && (
             <PlaceholderScene key={scene} def={def} progress={progress} remaining={remaining} />
           )}
         </AnimatePresence>
@@ -63,9 +93,7 @@ export default function ExperiencePage() {
       {scene !== 'S0' && (
         <div className="pointer-events-none absolute inset-x-0 bottom-0 z-30 flex items-end justify-between px-6 pb-6 sm:px-10">
           <VitalsReadout />
-          <span className="text-[10px] tracking-[0.14em] text-paper-mute/60">
-            {def.label}
-          </span>
+          <span className="text-[10px] tracking-[0.14em] text-paper-mute/60">{def.label}</span>
         </div>
       )}
     </main>

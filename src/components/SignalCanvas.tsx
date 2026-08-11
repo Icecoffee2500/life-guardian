@@ -55,6 +55,8 @@ export default function SignalCanvas({
     let carry = 0;
     let last = performance.now();
     let raf = 0;
+    // 파형 버퍼를 한 번에 채웠는가 (아래 prefill 참조). resize 안에서 참조하므로 여기서 선언한다.
+    let prefilled = false;
 
     const resize = () => {
       const rect = canvas.getBoundingClientRect();
@@ -66,6 +68,7 @@ export default function SignalCanvas({
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       hrBuf.resize(w);
       gsrBuf.resize(w);
+      prefilled = false;
     };
 
     const ro = new ResizeObserver(resize);
@@ -127,6 +130,24 @@ export default function SignalCanvas({
     let gsrMin = Infinity;
     let gsrMax = -Infinity;
 
+    // 버퍼가 오른쪽에서부터 차므로, 그냥 두면 파형이 화면 폭을 채울 때까지
+    // 몇 초 동안 "반쯤 그리다 만" 그림처럼 보인다. 첫 신호가 들어오는 순간
+    // 지나간 시간만큼의 파형을 한 번에 만들어 채운다.
+    const prefill = (hr: number, gsr: number) => {
+      let p = 0;
+      for (let i = 0; i < w; i++) {
+        if (hr > 0) {
+          p = (p + hr / 60 / pxPerSec) % 1;
+          hrBuf.push(ecgAt(p, 1));
+        } else {
+          hrBuf.push(0);
+        }
+        gsrBuf.push(gsr);
+      }
+      phase = p;
+      prefilled = true;
+    };
+
     const frame = (now: number) => {
       raf = requestAnimationFrame(frame);
       const dt = Math.min(0.1, (now - last) / 1000);
@@ -135,6 +156,7 @@ export default function SignalCanvas({
       const m = sensorHub.current();
       const hr = m.hr ?? 0;
       const gsr = m.gsr ?? 0;
+      if (!prefilled && hr > 0) prefill(hr, gsr);
 
       // 흘러간 시간만큼 픽셀 열을 채운다
       carry += dt * pxPerSec;
