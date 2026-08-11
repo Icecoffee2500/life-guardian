@@ -1,0 +1,408 @@
+'use client';
+
+import { useCallback, useEffect, useRef, useState } from 'react';
+import Link from 'next/link';
+import VitalsReadout from '@/components/experience/VitalsReadout';
+import { connectLiveSource, useSourceSnapshots, type LiveDeviceKind } from '@/hooks/useSensors';
+import { OPERATOR_GUIDE } from '@/lib/dialogue/script';
+import { PERSONAS } from '@/lib/sensors/personas';
+import { hasSupabase } from '@/lib/supabase/client';
+import { listLocal } from '@/lib/storage/persist';
+import type { SessionRecord } from '@/lib/storage/record';
+import { SCENES } from '@/lib/session/scenes';
+import {
+  SessionReceiver,
+  STALE_MS,
+  type LiveSessionState,
+  type SessionCommand,
+} from '@/lib/session/channel';
+import { useSession, type SignalMode } from '@/lib/session/store';
+
+/**
+ * /operator — 진행자 화면.
+ *
+ * 체험 화면(/experience)과 **다른 창**에서 연다. 부스에서는 노트북이 이 화면을 띄우고
+ * 참가자 앞의 모니터가 체험 화면을 띄운다.
+ *
+ * 여기에만 있는 것:
+ * - evidence 배열 (부록 C: "영수증에 인쇄하지 않고 진행자 화면에만 띄운다")
+ * - 부록 B 진행자 가이드
+ * - 페르소나·신호 모드 전환
+ *
+ * 체험 화면과는 채널로 이어져 있다. 같은 기기의 다른 창은 BroadcastChannel로,
+ * 다른 기기는 Supabase Realtime broadcast로 (환경변수가 있을 때만).
+ * 실황이 들어오면 헤더에 '실황 연결됨'이 뜨고, 그때는 이 화면의 값이
+ * 체험 화면의 것이다. 실황이 없으면 이 탭의 스토어를 그대로 보여준다.
+ */
+
+const SIGNAL_MODES: { id: SignalMode; label: string; detail: string }[] = [
+  { id: 'demo', label: '데모', detail: '생체는 시뮬레이터, 시선은 포인터' },
+  { id: 'auto', label: '자동', detail: '가상 참가자가 전 과정을 스스로 수행' },
+  { id: 'live', label: '실기기', detail: '밴드·GSR·아이트래커 (M5)' },
+];
+
+function LiveMetric({
+  label,
+  value,
+  unit,
+  color,
+}: {
+  label: string;
+  value: number | null;
+  unit: string;
+  color: string;
+}) {
+  return (
+    <div className="flex items-baseline gap-2">
+      <span
+        className="mb-px inline-block h-1 w-1 rounded-full"
+        style={{ background: color, boxShadow: `0 0 8px ${color}` }}
+      />
+      <span className="text-[10px] tracking-[0.14em] text-paper-mute">{label}</span>
+      <span className="tnum text-[13px] font-light text-paper-dim">{value ?? '—'}</span>
+      <span className="text-[10px] text-paper-mute">{unit}</span>
+    </div>
+  );
+}
+
+function CtlButton({
+  onClick,
+  children,
+}: {
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className="rounded-full border border-paper/15 px-4 py-2 text-[11.5px] text-paper-dim transition-colors duration-300 hover:border-paper/35 hover:text-paper"
+    >
+      {children}
+    </button>
+  );
+}
+
+function Panel({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <section className="rounded-2xl border border-paper/8 bg-ink-900/60 p-5">
+      <h2 className="text-[10px] tracking-[0.2em] text-paper-mute">{title}</h2>
+      <div className="mt-4">{children}</div>
+    </section>
+  );
+}
+
+export default function OperatorPage() {
+  const scene = useSession((s) => s.scene);
+  const status = useSession((s) => s.status);
+  const sessionId = useSession((s) => s.sessionId);
+  const mode = useSession((s) => s.mode);
+  const signalMode = useSession((s) => s.signalMode);
+  const personaId = useSession((s) => s.personaId);
+  const receipt = useSession((s) => s.receipt);
+  const fallback = useSession((s) => s.receiptFallback);
+  const setSignalMode = useSession((s) => s.setSignalMode);
+  const setPersona = useSession((s) => s.setPersona);
+  const pause = useSession((s) => s.pause);
+  const resume = useSession((s) => s.resume);
+  const abort = useSession((s) => s.abort);
+  const advance = useSession((s) => s.advance);
+  const back = useSession((s) => s.back);
+  const reset = useSession((s) => s.reset);
+
+  const localSources = useSourceSnapshots();
+  const [recent, setRecent] = useState<SessionRecord[]>([]);
+
+  useEffect(() => {
+    // 저장은 체험 창에서 일어나므로 주기적으로 다시 읽는다
+    const read = () => setRecent(listLocal(8));
+    read();
+    const t = setInterval(read, 4000);
+    return () => clearInterval(t);
+  }, []);
+
+  // 체험 화면의 실황. 같은 기기의 다른 창이면 BroadcastChannel로,
+  // 다른 기기면 Supabase Realtime으로 들어온다.
+  const [live, setLive] = useState<LiveSessionState | null>(null);
+  const [now, setNow] = useState(() => Date.now());
+  const rxRef = useRef<SessionReceiver | null>(null);
+  useEffect(() => {
+    const rx = new SessionReceiver();
+    rxRef.current = rx;
+    const stop = rx.start(setLive);
+    // 실황이 끊긴 것을 알아채려면 시계가 돌아야 한다
+    const t = setInterval(() => setNow(Date.now()), 1000);
+    return () => {
+      stop();
+      clearInterval(t);
+      rxRef.current = null;
+    };
+  }, []);
+
+  /**
+   * 진행자 조작은 두 곳에 동시에 건다:
+   * 이 탭의 스토어(단일 창 운영)와 채널(창·기기가 나뉜 운영).
+   * 어느 구성이든 버튼 하나로 동작해야 한다.
+   */
+  // 실기기 연결 상태 (이 창에 센서가 붙어 있을 때만 의미가 있다)
+  const [linking, setLinking] = useState<LiveDeviceKind | null>(null);
+  const [linkError, setLinkError] = useState<string | null>(null);
+  const liveHere = localSources.length > 0;
+
+  const linkDevice = useCallback(async (kind: LiveDeviceKind) => {
+    setLinkError(null);
+    setLinking(kind);
+    const res = await connectLiveSource(kind);
+    setLinking(null);
+    if (!res.ok) setLinkError(`${kind} 연결 실패: ${res.error}`);
+  }, []);
+
+  const command = useCallback((c: SessionCommand, local: () => void) => {
+    local();
+    rxRef.current?.send(c);
+  }, []);
+
+  const fresh = live !== null && now - live.at < STALE_MS;
+  // 실황이 살아 있으면 그쪽이 진실이다. 없으면 이 탭의 스토어를 쓴다(단일 창 운영).
+  const shownScene = fresh ? live.scene : scene;
+  const shownStatus = fresh ? live.status : status;
+  const shownSessionId = fresh ? live.sessionId : sessionId;
+  const sources = fresh ? live.sources : localSources;
+
+  const sceneDefIdx = SCENES.findIndex((s) => s.id === shownScene);
+
+  return (
+    <main className="min-h-dvh bg-ink-950 px-6 py-8">
+      <div className="mx-auto max-w-5xl">
+        <header className="flex flex-wrap items-baseline justify-between gap-3">
+          <div>
+            <h1 className="text-[11px] tracking-[0.24em] text-paper-mute">OPERATOR</h1>
+            <p className="tnum mt-2 text-[15px] font-light text-paper">{shownSessionId}</p>
+          </div>
+          <div className="flex items-center gap-4 text-[11px] text-paper-mute">
+            <span>
+              {String(Math.max(1, sceneDefIdx + 1)).padStart(2, '0')} / {SCENES.length} ·{' '}
+              {SCENES[Math.max(0, sceneDefIdx)]?.label}
+            </span>
+            <span>{shownStatus}</span>
+            <span>{mode === 'full' ? '전체' : '압축'}</span>
+            <span
+              className={fresh ? 'text-hrv' : 'text-paper-mute/60'}
+              title={fresh ? '체험 화면과 연결됨' : '체험 화면의 실황이 들어오지 않습니다'}
+            >
+              {fresh ? '실황 연결됨' : '실황 없음'}
+            </span>
+            <Link href="/experience" className="underline-offset-4 hover:text-paper-dim hover:underline">
+              체험 화면
+            </Link>
+          </div>
+        </header>
+
+        <div className="mt-6 rounded-2xl border border-paper/8 bg-ink-900/60 px-5 py-4">
+          {fresh ? (
+            // 다른 기기의 체험 화면을 볼 때는 이 탭에 센서가 없다. 실황 값을 그대로 보여준다.
+            <div className="flex flex-wrap items-center gap-x-7 gap-y-2">
+              <LiveMetric label="HR" value={live!.hr} unit="bpm" color="var(--color-hr)" />
+              <LiveMetric label="HRV" value={live!.rmssd} unit="ms" color="var(--color-hrv)" />
+              <LiveMetric label="GSR" value={live!.gsr} unit="µS" color="var(--color-gsr)" />
+              {live!.settled && (
+                <span className="text-[11px] tracking-[0.12em] text-hrv">안정</span>
+              )}
+            </div>
+          ) : (
+            <VitalsReadout />
+          )}
+        </div>
+
+        <div className="mt-5 grid gap-5 lg:grid-cols-2">
+          <Panel title="신호 모드">
+            <div className="space-y-1.5">
+              {SIGNAL_MODES.map((m) => (
+                <button
+                  key={m.id}
+                  onClick={() => command({ kind: 'signal-mode', value: m.id }, () => setSignalMode(m.id))}
+                  className={`flex w-full items-baseline gap-3 rounded-lg px-3 py-2.5 text-left transition-colors duration-300 ${
+                    signalMode === m.id ? 'bg-paper/[0.07]' : 'hover:bg-paper/[0.03]'
+                  }`}
+                >
+                  <span
+                    className={`text-[13px] ${signalMode === m.id ? 'text-paper' : 'text-paper-dim'}`}
+                  >
+                    {m.label}
+                  </span>
+                  <span className="text-[11px] text-paper-mute">{m.detail}</span>
+                </button>
+              ))}
+            </div>
+            <p className="mt-3 text-[10.5px] leading-relaxed text-paper-mute/70">
+              모드를 바꾸면 센서가 다시 연결됩니다. 체험 중에는 바꾸지 마세요.
+            </p>
+          </Panel>
+
+          <Panel title="가상 참가자">
+            <div className="space-y-1.5">
+              {PERSONAS.map((p) => (
+                <button
+                  key={p.id}
+                  onClick={() => command({ kind: 'persona', value: p.id }, () => setPersona(p.id))}
+                  className={`block w-full rounded-lg px-3 py-2.5 text-left transition-colors duration-300 ${
+                    personaId === p.id ? 'bg-paper/[0.07]' : 'hover:bg-paper/[0.03]'
+                  }`}
+                >
+                  <span
+                    className={`text-[13px] ${personaId === p.id ? 'text-paper' : 'text-paper-dim'}`}
+                  >
+                    {p.name}
+                  </span>
+                  <span className="mt-0.5 block text-[11px] leading-snug text-paper-mute">
+                    {p.blurb}
+                  </span>
+                </button>
+              ))}
+            </div>
+          </Panel>
+
+          <Panel title="센서">
+            {sources.length === 0 ? (
+              <p className="text-[11.5px] text-paper-mute">
+                연결된 소스가 없습니다. 체험 화면을 먼저 여세요.
+              </p>
+            ) : (
+              <ul className="space-y-2.5">
+                {sources.map((s) => (
+                  <li key={s.kind} className="flex items-baseline justify-between gap-3">
+                    <div className="min-w-0">
+                      <span className="text-[12.5px] text-paper-dim">{s.label}</span>
+                      <span className="ml-2 text-[11px] text-paper-mute">
+                        {s.status} · {s.quality}
+                      </span>
+                      {s.error && (
+                        <span className="mt-0.5 block text-[10.5px] text-warn">{s.error}</span>
+                      )}
+                    </div>
+                    {/*
+                      실기기 연결은 반드시 이 버튼(=사용자 제스처)에서 시작해야 한다.
+                      requestDevice/requestPort는 제스처 없이는 거부되고,
+                      셋을 한꺼번에 부르면 선택 다이얼로그가 겹쳐 두 번째부터 실패한다.
+                      진행자는 이 화면에서 기기를 하나씩 붙인다.
+                    */}
+                    {s.mode !== 'live' && (
+                      <button
+                        onClick={() => linkDevice(s.kind as LiveDeviceKind)}
+                        disabled={linking === s.kind || !liveHere}
+                        title={
+                          liveHere
+                            ? '이 기기를 실기기로 교체합니다'
+                            : '실기기 연결은 체험 화면이 열려 있는 창에서 눌러야 합니다'
+                        }
+                        className="shrink-0 rounded-full border border-paper/15 px-3 py-1.5 text-[11px] text-paper-dim transition-colors duration-300 hover:border-paper/35 hover:text-paper disabled:cursor-not-allowed disabled:opacity-35"
+                      >
+                        {linking === s.kind ? '연결 중' : '실기기 연결'}
+                      </button>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )}
+            {linkError && <p className="mt-3 text-[10.5px] leading-relaxed text-warn">{linkError}</p>}
+            {!liveHere && sources.length > 0 && (
+              <p className="mt-3 text-[10.5px] leading-relaxed text-paper-mute/70">
+                실기기 연결은 센서가 붙어 있는 창에서만 됩니다. 체험 화면을 이 창에서 열거나,
+                체험 화면 쪽에서 연결하세요.
+              </p>
+            )}
+          </Panel>
+
+          <Panel title="진행 제어">
+            <div className="flex flex-wrap gap-2">
+              <CtlButton onClick={() => command({ kind: 'pause' }, pause)}>일시정지</CtlButton>
+              <CtlButton onClick={() => command({ kind: 'resume' }, resume)}>재개</CtlButton>
+              <CtlButton
+                onClick={() =>
+                  command({ kind: 'abort' }, () => abort('진행자가 세션을 중단했습니다.'))
+                }
+              >
+                중단
+              </CtlButton>
+            </div>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <CtlButton onClick={() => command({ kind: 'back' }, back)}>← 이전 씬</CtlButton>
+              <CtlButton onClick={() => command({ kind: 'advance' }, advance)}>다음 씬 →</CtlButton>
+              <CtlButton onClick={() => command({ kind: 'reset' }, reset)}>처음으로</CtlButton>
+            </div>
+            <p className="mt-4 text-[10.5px] leading-relaxed text-paper-mute/70">
+              체험 화면에서 ← → 키로도 이동합니다.
+            </p>
+          </Panel>
+        </div>
+
+        {/* 부록 C: evidence는 여기에만 뜬다 */}
+        <div className="mt-5">
+          <Panel title="해석 근거 (참가자에게 보이지 않음)">
+            {!receipt ? (
+              <p className="text-[11.5px] text-paper-mute">아직 해석 결과가 없습니다.</p>
+            ) : (
+              <>
+                <div className="flex items-baseline gap-3">
+                  <span className="text-[14px] text-paper">{receipt.persona_name}</span>
+                  <span className="text-[11.5px] text-paper-mute">{receipt.one_liner}</span>
+                  {fallback && (
+                    <span className="text-[10px] text-warn">규칙 기반</span>
+                  )}
+                </div>
+                <ul className="mt-4 space-y-2">
+                  {receipt.evidence.map((e, i) => (
+                    <li key={i} className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+                      <span className="text-[12px] text-paper-dim">{e.claim}</span>
+                      <code className="rounded bg-paper/[0.06] px-1.5 py-0.5 text-[10.5px] text-paper-mute">
+                        {e.source}
+                      </code>
+                    </li>
+                  ))}
+                </ul>
+              </>
+            )}
+          </Panel>
+        </div>
+
+        <div className="mt-5 grid gap-5 lg:grid-cols-2">
+          <Panel title="최근 세션">
+            {recent.length === 0 ? (
+              <p className="text-[11.5px] text-paper-mute">저장된 세션이 없습니다.</p>
+            ) : (
+              <ul className="divide-y divide-paper/6">
+                {recent.map((r) => (
+                  <li key={r.session_id} className="flex items-baseline justify-between gap-3 py-2.5">
+                    <Link
+                      href={`/receipt/${r.session_id}`}
+                      className="tnum text-[12px] text-paper-dim underline-offset-4 hover:text-paper hover:underline"
+                    >
+                      {r.session_id}
+                    </Link>
+                    <span className="truncate text-[11px] text-paper-mute">
+                      {r.receipt.persona_name}
+                      {r.fallback ? ' · 규칙' : ''}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+            <p className="mt-4 text-[10.5px] leading-relaxed text-paper-mute/70">
+              저장소: 로컬{hasSupabase() ? ' + Supabase' : ' (Supabase 미설정)'}
+            </p>
+          </Panel>
+
+          <Panel title="진행자 가이드 (부록 B)">
+            <ul className="space-y-2.5">
+              {OPERATOR_GUIDE.map((g) => (
+                <li key={g} className="flex gap-2.5 text-[11.5px] leading-[1.7] text-paper-dim">
+                  <span className="mt-2 h-px w-3 shrink-0 bg-paper/25" aria-hidden />
+                  <span>{g}</span>
+                </li>
+              ))}
+            </ul>
+          </Panel>
+        </div>
+      </div>
+    </main>
+  );
+}

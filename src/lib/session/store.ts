@@ -1,0 +1,174 @@
+'use client';
+
+import { create } from 'zustand';
+import { experienceBus } from '@/lib/sensors/bus';
+import { sessionClock } from '@/lib/sensors/clock';
+import { sessionRecorder } from '@/lib/session/recorder';
+import { DEFAULT_PERSONA_ID, type PersonaId } from '@/lib/sensors/personas';
+import {
+  makeSessionId,
+  nextScene,
+  prevScene,
+  sceneDef,
+  type ExperienceMode,
+  type SceneId,
+} from './scenes';
+import type { LlmInput } from '@/lib/features/schema';
+import type { BioReceipt } from '@/lib/interpret/schema';
+
+/**
+ * 신호 공급 방식.
+ * - demo   : 생체신호는 시뮬레이터, 시선은 포인터. 심사위원 기본 경로.
+ * - auto   : 가상 참가자가 시선·그림·대화까지 전부 자동 수행 (부스 무인 시연·리허설)
+ * - live   : 실기기 (M5). 연결 실패 시 demo로 자동 폴백.
+ */
+export type SignalMode = 'demo' | 'auto' | 'live';
+
+export type SessionStatus = 'idle' | 'running' | 'paused' | 'aborted' | 'done';
+
+export interface SessionState {
+  sessionId: string;
+  nickname: string;
+  mode: ExperienceMode;
+  signalMode: SignalMode;
+  personaId: PersonaId;
+  scene: SceneId;
+  /** 현재 씬에 진입한 세션 시각(ms) */
+  sceneStartedAt: number;
+  status: SessionStatus;
+  /** 윤리 고지 동의 여부 */
+  consented: boolean;
+  /** 진행자가 띄운 경고 (GSR 미회복 등) */
+  alert: string | null;
+  /** 해석 결과 */
+  llmInput: LlmInput | null;
+  receipt: BioReceipt | null;
+  /** 해석이 규칙 기반 폴백으로 만들어졌는가 */
+  receiptFallback: boolean;
+  /** 씬 완료 신호를 세는 카운터 — 하위 시퀀스가 끝났음을 알린다 */
+  sceneNonce: number;
+
+  setNickname: (v: string) => void;
+  setMode: (v: ExperienceMode) => void;
+  setSignalMode: (v: SignalMode) => void;
+  setPersona: (v: PersonaId) => void;
+  setConsented: (v: boolean) => void;
+  setAlert: (v: string | null) => void;
+  setLlmInput: (v: LlmInput | null) => void;
+  setReceipt: (v: BioReceipt | null, fallback?: boolean) => void;
+
+  begin: () => void;
+  goTo: (scene: SceneId) => void;
+  advance: () => void;
+  back: () => void;
+  pause: () => void;
+  resume: () => void;
+  abort: (reason?: string) => void;
+  reset: () => void;
+}
+
+function enter(scene: SceneId): number {
+  const t = sessionClock.now();
+  sessionRecorder.enterScene(scene, t);
+  experienceBus.emit('scene-enter', { ref: scene, t });
+  return t;
+}
+
+/**
+ * 세션이 아직 시작되지 않았음을 나타내는 값.
+ *
+ * 초기값으로 makeSessionId()를 부르면 안 된다 — 그 안의 난수가 서버 렌더와
+ * 클라이언트에서 다른 값을 만들어 하이드레이션 불일치가 난다.
+ * 실제 ID는 begin()에서, 즉 브라우저에서만 만든다.
+ */
+export const PENDING_SESSION_ID = '—';
+
+export const useSession = create<SessionState>((set, get) => ({
+  sessionId: PENDING_SESSION_ID,
+  nickname: '',
+  mode: 'full',
+  signalMode: 'demo',
+  personaId: DEFAULT_PERSONA_ID,
+  scene: 'S0',
+  sceneStartedAt: 0,
+  status: 'idle',
+  consented: false,
+  alert: null,
+  llmInput: null,
+  receipt: null,
+  receiptFallback: false,
+  sceneNonce: 0,
+
+  setNickname: (v) => set({ nickname: v }),
+  setMode: (v) => set({ mode: v }),
+  setSignalMode: (v) => set({ signalMode: v }),
+  setPersona: (v) => set({ personaId: v }),
+  setConsented: (v) => set({ consented: v }),
+  setAlert: (v) => set({ alert: v }),
+  setLlmInput: (v) => set({ llmInput: v }),
+  setReceipt: (v, fallback = false) => set({ receipt: v, receiptFallback: fallback }),
+
+  begin: () => {
+    sessionClock.reset();
+    sessionRecorder.clear();
+    experienceBus.clear();
+    set({
+      sessionId: makeSessionId(),
+      status: 'running',
+      scene: 'S1',
+      sceneStartedAt: enter('S1'),
+      llmInput: null,
+      receipt: null,
+      receiptFallback: false,
+      alert: null,
+      sceneNonce: 0,
+    });
+  },
+
+  goTo: (scene) => {
+    set({ scene, sceneStartedAt: enter(scene), sceneNonce: get().sceneNonce + 1 });
+  },
+
+  advance: () => {
+    const n = nextScene(get().scene);
+    if (!n) {
+      set({ status: 'done' });
+      return;
+    }
+    set({ scene: n, sceneStartedAt: enter(n), sceneNonce: get().sceneNonce + 1 });
+  },
+
+  back: () => {
+    const p = prevScene(get().scene);
+    if (p) set({ scene: p, sceneStartedAt: enter(p), sceneNonce: get().sceneNonce + 1 });
+  },
+
+  pause: () => set({ status: 'paused' }),
+  resume: () => set({ status: 'running' }),
+
+  abort: (reason) => set({ status: 'aborted', alert: reason ?? '세션이 중단되었습니다.' }),
+
+  reset: () => {
+    sessionClock.reset();
+    sessionRecorder.clear();
+    experienceBus.clear();
+    set({
+      sessionId: PENDING_SESSION_ID,
+      nickname: '',
+      scene: 'S0',
+      sceneStartedAt: 0,
+      status: 'idle',
+      consented: false,
+      alert: null,
+      llmInput: null,
+      receipt: null,
+      receiptFallback: false,
+      sceneNonce: 0,
+    });
+  },
+}));
+
+/** 현재 씬 정의 */
+export function currentSceneDef(state: SessionState) {
+  return sceneDef(state.scene);
+}
