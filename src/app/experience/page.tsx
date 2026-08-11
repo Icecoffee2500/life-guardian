@@ -11,9 +11,11 @@ import S3Calm from '@/components/scenes/S3Calm';
 import S4Gaze from '@/components/scenes/S4Gaze';
 import S5Draw from '@/components/scenes/S5Draw';
 import S6Dialogue from '@/components/scenes/S6Dialogue';
-import PlaceholderScene from '@/components/scenes/PlaceholderScene';
+import S7Replay from '@/components/scenes/S7Replay';
+import S8Result from '@/components/scenes/S8Result';
 import { useSceneTimer } from '@/hooks/useSceneTimer';
 import { useSensorSetup } from '@/hooks/useSensors';
+import { useInterpretation } from '@/hooks/useInterpretation';
 import { useSession } from '@/lib/session/store';
 import { isSelfDriven, sceneDef } from '@/lib/session/scenes';
 
@@ -29,13 +31,15 @@ export default function ExperiencePage() {
   const personaId = useSession((s) => s.personaId);
   // 센서는 세션 전체 수명 동안 살아 있어야 한다 (씬별로 붙였다 떼면 신호가 끊긴다)
   useSensorSetup(signalMode, personaId, scene !== 'S0');
+  // S7에 들어가는 순간 해석이 뒤에서 시작된다. 리플레이가 그 대기 시간을 덮는다.
+  useInterpretation();
 
   const def = sceneDef(scene);
   const selfDriven = isSelfDriven(scene);
   const duration = selfDriven ? null : def.durationSec(mode);
 
   const onDone = useCallback(() => advance(), [advance]);
-  const { progress, remaining } = useSceneTimer(duration, onDone, {
+  const { progress } = useSceneTimer(duration, onDone, {
     paused: status === 'paused',
     key: `${scene}:${sceneNonce}`,
   });
@@ -84,9 +88,8 @@ export default function ExperiencePage() {
           {scene === 'S4' && <S4Gaze key="S4" onDone={onDone} onProgress={setSubProgress} />}
           {scene === 'S5' && <S5Draw key="S5" onDone={onDone} onProgress={setSubProgress} />}
           {scene === 'S6' && <S6Dialogue key="S6" onDone={onDone} onProgress={setSubProgress} />}
-          {(scene === 'S7' || scene === 'S8') && (
-            <PlaceholderScene key={scene} def={def} progress={progress} remaining={remaining} />
-          )}
+          {scene === 'S7' && <S7Replay key="S7" progress={progress} />}
+          {scene === 'S8' && <S8Result key="S8" />}
         </AnimatePresence>
       </div>
 
