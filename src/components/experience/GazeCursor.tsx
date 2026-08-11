@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { sensorHub } from '@/lib/sensors/hub';
+import { rgbHrv } from '@/lib/theme';
 
 /**
  * 시선 커서 — 물방울.
@@ -55,6 +56,9 @@ export default function GazeCursor({ visible }: { visible: boolean }) {
       setSupported(false);
       return;
     }
+
+    /** 시선 채널 색 */
+    const C = rgbHrv();
 
     let w = 0;
     let h = 0;
@@ -132,9 +136,9 @@ export default function GazeCursor({ visible }: { visible: boolean }) {
         ctx.rotate(angle);
         ctx.scale(1 + s, 1 - s * 0.55);
         const grad = ctx.createRadialGradient(0, 0, 0, 0, 0, r);
-        grad.addColorStop(0, `rgba(78, 107, 47, ${0.3 * alpha})`);
-        grad.addColorStop(0.55, `rgba(78, 107, 47, ${0.16 * alpha})`);
-        grad.addColorStop(1, 'rgba(78, 107, 47, 0)');
+        grad.addColorStop(0, `rgba(${C}, ${0.32 * alpha})`);
+        grad.addColorStop(0.55, `rgba(${C}, ${0.17 * alpha})`);
+        grad.addColorStop(1, `rgba(${C}, 0)`);
         ctx.beginPath();
         ctx.arc(0, 0, r, 0, Math.PI * 2);
         ctx.fillStyle = grad;
@@ -158,7 +162,7 @@ export default function GazeCursor({ visible }: { visible: boolean }) {
       ctx.scale(1 + stretch, 1 - stretch * 0.55);
       ctx.beginPath();
       ctx.arc(0, 0, R * 0.62, 0, Math.PI * 2);
-      ctx.strokeStyle = `rgba(78, 107, 47, ${0.5 * fade * (0.35 + settle * 0.65)})`;
+      ctx.strokeStyle = `rgba(${C}, ${0.55 * fade * (0.35 + settle * 0.65)})`;
       ctx.lineWidth = 1.5;
       ctx.stroke();
 

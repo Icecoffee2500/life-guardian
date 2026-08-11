@@ -52,7 +52,7 @@ export default function S3Calm({ progress }: { progress: number }) {
           className="h-24 w-24 rounded-full"
           style={{
             background:
-              'radial-gradient(circle, rgba(78,107,47,0.16) 0%, rgba(78,107,47,0) 68%)',
+              'radial-gradient(circle, rgba(74,92,44,0.18) 0%, rgba(74,92,44,0) 68%)',
           }}
           animate={{ scale: [0.8, 1.25, 0.8], opacity: [0.55, 1, 0.55] }}
           transition={{ duration: 9, repeat: Infinity, ease: 'easeInOut' }}

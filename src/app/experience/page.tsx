@@ -83,14 +83,23 @@ export default function ExperiencePage() {
   useSessionBroadcast(railProgress);
 
   /*
-    시선 물방울 — 웹캠으로 보정까지 마쳤을 때만 뜬다.
-    포인터 프록시일 때 방울을 띄우면 "눈을 추적하고 있다"는 거짓말이 된다.
+    시선 물방울.
+
+    두 가지 조건이 모두 맞을 때만 뜬다.
+    1) 웹캠으로 보정까지 마쳤을 것 — 포인터 프록시에서 띄우면 마우스를 눈이라 부르는 셈이다
+    2) 지금이 시선 씬(S4)일 것 — 시선을 재지 않는 화면에서 방울이 떠다니면
+       읽는 데 방해만 되고, 무엇을 재는 중인지도 흐려진다
+
+    앞선 판(版)은 반대로 되어 있었다. 자극이 떠 있는 동안 감추고 나머지에서 띄웠는데,
+    그러면 정작 시선 씬에서는 방울이 안 보이고 다른 씬에서만 떠다닌다.
+    자극 위에 방울이 보이면 시선이 그쪽으로 끌릴 위험이 있지만, 그건 우하단
+    '시선 표시' 스위치로 끌 수 있게 두고, 기본은 **보이는 쪽**으로 정한다.
   */
   const gazeMode = useSession((s) => s.gazeMode);
   const gazeCalibrated = useSession((s) => s.gazeCalibrated);
   const gazeCursor = useSession((s) => s.gazeCursor);
-  const stimulusExposing = useSession((s) => s.stimulusExposing);
   const gazeLive = gazeMode === 'webcam' && gazeCalibrated;
+  const gazeScene = scene === 'S4';
 
   /*
     심장 소리는 대화 씬에서만 재운다.
@@ -129,7 +138,7 @@ export default function ExperiencePage() {
     >
       {scene !== 'S0' && <ProgressRail scene={scene} sceneProgress={railProgress} />}
 
-      {gazeLive && <GazeCursor visible={gazeCursor && !stimulusExposing} />}
+      {gazeLive && gazeScene && <GazeCursor visible={gazeCursor} />}
 
       <div className="absolute inset-0">
         {/* mode를 지정하지 않아 씬이 겹치며 교차한다 — 전환 중 검은 공백이 없다 */}
@@ -150,7 +159,7 @@ export default function ExperiencePage() {
         <div className="pointer-events-none absolute inset-x-0 bottom-0 z-30 flex flex-wrap items-end justify-between gap-x-6 gap-y-3 px-6 pb-6 sm:px-10">
           <VitalsReadout />
           <div className="flex items-center gap-4">
-            {gazeLive && <GazeCursorToggle />}
+            {gazeLive && gazeScene && <GazeCursorToggle />}
             {/* 소리를 재우는 씬에서는 스위치도 숨긴다 — '켜짐'인데 조용하면 고장으로 읽힌다 */}
             {soundActive && <SoundToggle />}
             {/*

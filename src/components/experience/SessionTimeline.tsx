@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from 'react';
 import { sessionRecorder } from '@/lib/session/recorder';
+import { rgbGsr, rgbHr, rgbInk } from '@/lib/theme';
 import { SCENES } from '@/lib/session/scenes';
 
 /**
@@ -60,15 +61,21 @@ export default function SessionTimeline({
       const p = progressRef.current;
       const headX = w * p;
 
+      /*
+        밝은 바탕용 색. 예전에는 흰색에 가까운 값(236,233,227)이 박혀 있었는데,
+        라이트 테마로 바꾼 뒤로 눈금과 씬 이름이 바탕에 그대로 묻혀 보이지 않았다.
+      */
+      const INK = rgbInk();
+
       ctx.clearRect(0, 0, w, h);
 
       // 씬 경계 — 어디가 무엇이었는지
-      ctx.font = '10px system-ui, sans-serif';
+      ctx.font = '600 11px system-ui, sans-serif';
       for (const s of sessionRecorder.sceneSpans) {
         const x = ((s.start - t0) / span) * w;
         if (x < 0 || x > w) continue;
         const past = x <= headX;
-        ctx.strokeStyle = past ? 'rgba(236,233,227,0.16)' : 'rgba(236,233,227,0.06)';
+        ctx.strokeStyle = past ? `rgba(${INK},0.24)` : `rgba(${INK},0.09)`;
         ctx.lineWidth = 1;
         ctx.beginPath();
         ctx.moveTo(x, 12);
@@ -76,7 +83,7 @@ export default function SessionTimeline({
         ctx.stroke();
         const def = SCENES.find((d) => d.id === s.scene);
         if (def) {
-          ctx.fillStyle = past ? 'rgba(236,233,227,0.4)' : 'rgba(236,233,227,0.14)';
+          ctx.fillStyle = past ? `rgba(${INK},0.62)` : `rgba(${INK},0.22)`;
           ctx.fillText(def.label, x + 4, h - 3);
         }
       }
@@ -124,12 +131,12 @@ export default function SessionTimeline({
         paint(0, headX, 0.88);
       };
 
-      trace(hr, '242, 112, 78', 14, h * 0.42, 1.3);
-      trace(gsr, '63, 175, 166', h * 0.5, h * 0.34, 1.3);
+      trace(hr, rgbHr(), 14, h * 0.42, 1.3);
+      trace(gsr, rgbGsr(), h * 0.5, h * 0.34, 1.3);
 
       // 재생 헤드
       if (p > 0 && p < 1) {
-        ctx.strokeStyle = 'rgba(236,233,227,0.5)';
+        ctx.strokeStyle = `rgba(${INK},0.7)`;
         ctx.lineWidth = 1;
         ctx.beginPath();
         ctx.moveTo(headX, 8);

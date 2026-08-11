@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef } from 'react';
+import { rgbHr } from '@/lib/theme';
 import { ecgAt } from '@/lib/waveform';
 
 /**
@@ -48,6 +49,9 @@ export default function HeroPulse() {
     // 한 화면에 대여섯 박동만 보이도록 느리게 흘린다.
     const PX_PER_SEC = 165;
 
+    /** 심박 채널 색 — 테마 토큰에서 */
+    const C = rgbHr();
+
     const draw = (now: number) => {
       raf = requestAnimationFrame(draw);
       const dt = Math.min(0.1, (now - last) / 1000);
@@ -62,10 +66,10 @@ export default function HeroPulse() {
       // 심박 색(--color-hr)을 진하게 써서 알파를 올린다. 글로우는 어두운
       // 배경에서만 통하는 효과라 밝은 종이 위에서는 얼룩으로 보여 제거한다.
       const grad = ctx.createLinearGradient(0, 0, w, 0);
-      grad.addColorStop(0, 'rgba(217,66,21,0)');
-      grad.addColorStop(0.28, 'rgba(217,66,21,0.3)');
-      grad.addColorStop(0.72, 'rgba(217,66,21,0.3)');
-      grad.addColorStop(1, 'rgba(217,66,21,0)');
+      grad.addColorStop(0, `rgba(${C},0)`);
+      grad.addColorStop(0.28, `rgba(${C},0.34)`);
+      grad.addColorStop(0.72, `rgba(${C},0.34)`);
+      grad.addColorStop(1, `rgba(${C},0)`);
 
       ctx.beginPath();
       for (let x = 0; x <= w; x += 1) {

@@ -38,7 +38,7 @@ export default function Button({
   const styles: Record<Variant, string> = {
     // 이 화면에서 다음으로 할 일 — 화면에 하나만 둔다
     primary:
-      'bg-surface-inverse text-ink-on-inverse hover:bg-[#2a2a30] active:bg-[#000]',
+      'bg-surface-inverse text-ink-on-inverse hover:bg-[#2b2b29] active:bg-[#000]',
     // 부차적 선택지 — 눌러도 되지만 주된 길은 아니다
     secondary:
       'border border-line-strong bg-surface-raised text-ink hover:bg-surface-sunken',
