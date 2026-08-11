@@ -75,6 +75,12 @@ body {
   -moz-osx-font-smoothing: grayscale;
   letter-spacing: -0.011em;
   overscroll-behavior: none;
+  /*
+    한국어는 어절 중간에서 줄이 바뀌면 읽는 속도가 눈에 띄게 떨어진다.
+    keep-all이 없으면 "...하나입니다."가 "다."만 다음 줄로 떨어지는 일이 계속 생긴다.
+  */
+  word-break: keep-all;
+  overflow-wrap: break-word;
 }
 
 ::selection {
@@ -191,6 +197,14 @@ body {
 }
 
 /* ── 영수증(인쇄) 전용 — 여기만 라이트 테마 ───────────────────────── */
+
+/* 감열지에는 계조가 없다. 화면에서도 같은 물건으로 보이도록 종이면을 순백으로 둔다. */
+.receipt {
+  color-scheme: light;
+  -webkit-font-smoothing: auto;
+  letter-spacing: -0.005em;
+}
+
 @media print {
   @page {
     size: 80mm auto;
@@ -203,5 +217,12 @@ body {
   }
   .no-print {
     display: none !important;
+  }
+  /* 인쇄 시에는 종이 한 장만 남고 나머지 여백·그림자는 사라진다 */
+  .receipt {
+    width: 80mm !important;
+    margin: 0 !important;
+    box-shadow: none !important;
+    page-break-inside: avoid;
   }
 }

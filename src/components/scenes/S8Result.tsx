@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { motion } from 'motion/react';
 import SceneShell from './SceneShell';
 import Button from '@/components/ui/Button';
@@ -170,9 +171,14 @@ export default function S8Result() {
             <span className="tnum">{sessionId}</span>
             {fallback && <span>· 규칙 기반 해석</span>}
           </div>
-          <Button variant="ghost" onClick={reset} className="mt-2">
-            처음으로
-          </Button>
+          <div className="mt-2 flex items-center gap-2">
+            <Link href={`/receipt/${sessionId}`}>
+              <Button variant="primary">영수증 받기</Button>
+            </Link>
+            <Button variant="ghost" onClick={reset}>
+              처음으로
+            </Button>
+          </div>
         </motion.div>
       </div>
     </SceneShell>

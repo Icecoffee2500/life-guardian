@@ -4,6 +4,9 @@ import { useEffect, useRef } from 'react';
 import { sensorHub } from '@/lib/sensors/hub';
 import { getPersona } from '@/lib/sensors/personas';
 import { runInterpretation } from '@/lib/interpret/run';
+import { sessionRecorder } from '@/lib/session/recorder';
+import { saveSession } from '@/lib/storage/persist';
+import { downsampleTrace } from '@/lib/storage/record';
 import { useSession } from '@/lib/session/store';
 
 /**
@@ -51,6 +54,20 @@ export function useInterpretation() {
         if (ac.signal.aborted) return;
         setLlmInput(out.input);
         setReceipt(out.receipt, out.fallback);
+
+        // 영수증이 나오는 즉시 저장한다. 저장 실패는 체험을 막지 않는다.
+        const hr = sessionRecorder.hr;
+        void saveSession({
+          session_id: sessionId,
+          nickname: useSession.getState().nickname,
+          mode: useSession.getState().mode,
+          created_at: new Date().toISOString(),
+          input: out.input,
+          receipt: out.receipt,
+          fallback: out.fallback,
+          hr_trace: downsampleTrace(hr),
+          duration_sec: Math.round((hr[hr.length - 1]?.t ?? 0) / 1000),
+        });
       })
       .catch(() => {
         // runInterpretation은 자체 폴백을 갖고 있어 여기까지 오지 않는다.
