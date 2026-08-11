@@ -175,7 +175,7 @@ export default function S4Gaze({
   const exposing = phase === 'expose' && !!pair;
 
   return (
-    <SceneShell align="stretch" className="justify-center px-5 sm:px-10">
+    <SceneShell align="stretch" className="justify-center px-3 sm:px-10">
       {/* 시선 프록시 표식 — 존재를 알릴 만큼만, 방해하지 않을 만큼 흐리게 */}
       {signalMode !== 'auto' && (
         <div
@@ -209,7 +209,7 @@ export default function S4Gaze({
         </div>
 
         {/* 두 판은 언제나 같은 비율·같은 크기. 한쪽이 크면 그게 곧 편향이다. */}
-        <div className="grid w-full grid-cols-2 items-center justify-items-center gap-5 sm:gap-10">
+        <div className="grid w-full grid-cols-2 items-center justify-items-center gap-3 sm:gap-10">
           {left && right && (
             <>
               <StimulusPlate
