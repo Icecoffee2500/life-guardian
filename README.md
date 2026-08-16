@@ -30,6 +30,45 @@ Supabase가 없으면 localStorage에 저장된다. 심사위원은 URL만 열�
 
 Supabase를 쓸 거면 [`supabase/schema.sql`](./supabase/schema.sql)을 SQL Editor에 붙여넣고 실행한다.
 
+## 다른 사이트에 임베드하기
+
+공모전 제출물이라 **모든 도메인에서 iframe 임베드를 허용**한다 (`next.config.ts`).
+
+```
+Content-Security-Policy: frame-ancestors *
+Permissions-Policy: camera=*, microphone=*, autoplay=*
+```
+
+`X-Frame-Options`는 일부러 넣지 않았다. 이 헤더에는 "모두 허용" 값이 없고
+브라우저에 따라 `frame-ancestors`보다 먼저 적용돼서, 넣는 순간 오히려 막힌다.
+
+**임베드하는 쪽에서 반드시 `allow`를 붙여야 한다.**
+
+```html
+<iframe src="https://<배포주소>/experience"
+        allow="camera; microphone; autoplay"
+        style="width:100%;aspect-ratio:16/9;border:0"></iframe>
+```
+
+`allow` 없이도 화면은 뜨지만 **웹캠 시선 추적과 음성 인식이 조용히 죽는다.**
+교차 출처 iframe에서는 부모가 위임하지 않으면 자식이 카메라·마이크를 못 연다.
+(실측: `allow` 있음 → `camera: true` / 없음 → `camera: false`)
+
+임베드에서 안 되는 것:
+
+| 기능 | 상태 | 이유 |
+|------|------|------|
+| 웹캠 시선 · 음성 인식 | `allow` 있으면 됨 | Permissions Policy 위임 |
+| 심박 소리 | `allow="autoplay"` 권장 | 자동재생 정책 |
+| **영수증 저장·조회** | **깨질 수 있음** | 서드파티 스토리지 분할(Safari는 거의 확실) |
+| 실기기(Web Bluetooth·Serial) | 대개 막힘 | 교차 출처 iframe에서 차단 |
+
+영수증까지 보여줘야 하면 그 부분은 새 탭으로 여는 편이 안전하다.
+
+> 참고: 교차 출처 격리(COOP/COEP)를 켜면 `SharedArrayBuffer`가 열려 기기 내
+> 음성 인식이 여러 스레드로 빨라지지만, **그 순간 임베드가 막힌다.**
+> 임베드를 택했으므로 켜지 않는다. 인식은 단일 스레드 WASM으로 돈다.
+
 ## 화면
 
 | 경로 | 용도 |
