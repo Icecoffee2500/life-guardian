@@ -117,33 +117,49 @@ class Heartbeat {
     this.master.gain.linearRampToValueAtTime(target, now + FADE_SEC);
   }
 
-  /** 실측 HR에서 다음 박동들을 예약한다 */
+  /**
+   * 다음 박동들을 예약한다.
+   *
+   * 간격은 **화면에 뜬 숫자와 같은 값**에서 온다. 계기판이 `Math.round(hr)`을
+   * 보여주므로 여기서도 반올림한 값을 쓴다 — 72라고 적혀 있는데 71.6으로 뛰면
+   * 귀로는 구분이 안 돼도 "숫자와 소리가 같다"는 약속이 깨진다.
+   */
   private schedule(): void {
     const ctx = this.ctx;
     if (!ctx || !this.enabled) return;
 
-    const hr = sensorHub.current().hr;
-    if (hr === null || hr < HR_MIN || hr > HR_MAX) {
+    const raw = sensorHub.current().hr;
+    if (raw === null || raw < HR_MIN || raw > HR_MAX) {
       // 신호가 없으면 박자를 지어내지 않고 기다린다
       this.nextAt = Math.max(this.nextAt, ctx.currentTime + 0.12);
       return;
     }
 
-    const interval = 60 / hr;
+    // 계기판(VitalsReadout)이 표시하는 값과 같은 수
+    const shown = Math.round(raw);
+    const interval = 60 / shown;
     if (this.nextAt < ctx.currentTime) this.nextAt = ctx.currentTime + 0.02;
 
     while (this.nextAt < ctx.currentTime + AHEAD_SEC) {
       // 소리를 재우고 있을 때도 시간축은 계속 흘러야 한다 (다시 켤 때 박자가 안 튄다)
-      if (this.active) this.beat(this.nextAt, interval);
+      if (this.active) this.beat(this.nextAt);
       this.nextAt += interval;
     }
   }
 
-  /** 한 박동 = 낮고 짧은 lub + 조금 높고 작은 dub */
-  private beat(at: number, interval: number): void {
-    const gap = Math.min(0.3, interval * 0.32);
-    this.thump(at, 62, 34, 0.17, 1);
-    this.thump(at + gap, 74, 44, 0.13, 0.55);
+  /**
+   * 한 박동 = 소리 하나.
+   *
+   * 예전에는 실제 심음처럼 lub-dub 두 번을 냈다. 물리적으로는 맞지만
+   * 부스에서 **두 배로 빠르게 들린다**는 반응이 나왔다. 0.3초 간격의 두 소리를
+   * 귀는 한 박이 아니라 두 박으로 세기 때문이다.
+   * 화면의 72 bpm과 귀로 센 박자가 다르면, 그 순간 이 소리는 "내 심장"이
+   * 아니라 그냥 배경음이 된다. 그래서 한 박에 한 번만 친다.
+   *
+   * 대신 음을 조금 길고 무겁게 잡아 '똑' 소리가 아니라 '쿵'으로 들리게 했다.
+   */
+  private beat(at: number): void {
+    this.thump(at, 58, 30, 0.26, 1);
   }
 
   /**
