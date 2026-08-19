@@ -1,0 +1,266 @@
+[
+  {
+    "pair": 1,
+    "a": {
+      "luminance": 0.2891859743167212,
+      "contrast": 0.1461937847490306,
+      "edges": 0.21970137799628892
+    },
+    "b": {
+      "luminance": 0.288488621117455,
+      "contrast": 0.1462246617833447,
+      "edges": 0.1750672675751164
+    },
+    "diff": {
+      "luminance": 0.002411435066703732,
+      "contrast": 0.0002111616052827061,
+      "edges": 0.20315808133859978
+    },
+    "pass": true,
+    "failing": [],
+    "edgeWarn": true,
+    "complexityIsSignal": false
+  },
+  {
+    "pair": 2,
+    "a": {
+      "luminance": 0.506719275141774,
+      "contrast": 0.2074265454987767,
+      "edges": 0.2148834687512794
+    },
+    "b": {
+      "luminance": 0.5067011492962774,
+      "contrast": 0.20855155429773575,
+      "edges": 0.09862732560184308
+    },
+    "diff": {
+      "luminance": 0.00003577098086799682,
+      "contrast": 0.005394391821951829,
+      "edges": 0.5410194829086598
+    },
+    "pass": true,
+    "failing": [],
+    "edgeWarn": true,
+    "complexityIsSignal": false
+  },
+  {
+    "pair": 3,
+    "a": {
+      "luminance": 0.3817478656233773,
+      "contrast": 0.1890841473825609,
+      "edges": 0.2924078178216721
+    },
+    "b": {
+      "luminance": 0.3820313132045764,
+      "contrast": 0.18911265203060035,
+      "edges": 0.11500526338263616
+    },
+    "diff": {
+      "luminance": 0.0007419485560527755,
+      "contrast": 0.0001507284030622544,
+      "edges": 0.6066956614245748
+    },
+    "pass": true,
+    "failing": [],
+    "edgeWarn": false,
+    "complexityIsSignal": true
+  },
+  {
+    "pair": 4,
+    "a": {
+      "luminance": 0.30664415648323484,
+      "contrast": 0.15303598981061947,
+      "edges": 0.22248850249088525
+    },
+    "b": {
+      "luminance": 0.30636265044500155,
+      "contrast": 0.15306929781477632,
+      "edges": 0.1717089452705064
+    },
+    "diff": {
+      "luminance": 0.0009180218578490444,
+      "contrast": 0.0002176008163123347,
+      "edges": 0.2282345229163433
+    },
+    "pass": true,
+    "failing": [],
+    "edgeWarn": true,
+    "complexityIsSignal": false
+  },
+  {
+    "pair": 5,
+    "a": {
+      "luminance": 0.637153459598588,
+      "contrast": 0.12522416171261738,
+      "edges": 0.17231496094023782
+    },
+    "b": {
+      "luminance": 0.6377245382380594,
+      "contrast": 0.12591527582314216,
+      "edges": 0.0809546161190933
+    },
+    "diff": {
+      "luminance": 0.0008954942223944761,
+      "contrast": 0.005488723318173882,
+      "edges": 0.530193921193123
+    },
+    "pass": true,
+    "failing": [],
+    "edgeWarn": true,
+    "complexityIsSignal": false
+  },
+  {
+    "pair": 6,
+    "a": {
+      "luminance": 0.2866941985092732,
+      "contrast": 0.2045969547051066,
+      "edges": 0.16165283301341205
+    },
+    "b": {
+      "luminance": 0.2873641324044002,
+      "contrast": 0.20393587705148208,
+      "edges": 0.16076892792102873
+    },
+    "diff": {
+      "luminance": 0.002331306588339992,
+      "contrast": 0.0032311216683423363,
+      "edges": 0.005467922064254683
+    },
+    "pass": true,
+    "failing": [],
+    "edgeWarn": false,
+    "complexityIsSignal": false
+  },
+  {
+    "pair": 7,
+    "a": {
+      "luminance": 0.5154741301073227,
+      "contrast": 0.08190823287218627,
+      "edges": 0.06768249700961668
+    },
+    "b": {
+      "luminance": 0.5147563494551771,
+      "contrast": 0.08102074138574616,
+      "edges": 0.08613871604633346
+    },
+    "diff": {
+      "luminance": 0.001392466877040207,
+      "contrast": 0.01083519269454863,
+      "edges": 0.21426159900954755
+    },
+    "pass": true,
+    "failing": [],
+    "edgeWarn": true,
+    "complexityIsSignal": false
+  },
+  {
+    "pair": 8,
+    "a": {
+      "luminance": 0.5485321763516307,
+      "contrast": 0.3210349898394701,
+      "edges": 0.1974301884304173
+    },
+    "b": {
+      "luminance": 0.5489045232891294,
+      "contrast": 0.31973556013200827,
+      "edges": 0.2285501084892574
+    },
+    "diff": {
+      "luminance": 0.0006783455440804211,
+      "contrast": 0.004047626422626378,
+      "edges": 0.13616235084965114
+    },
+    "pass": true,
+    "failing": [],
+    "edgeWarn": false,
+    "complexityIsSignal": false
+  },
+  {
+    "pair": 9,
+    "a": {
+      "luminance": 0.4724343492525319,
+      "contrast": 0.17080512000842207,
+      "edges": 0.03297987052076017
+    },
+    "b": {
+      "luminance": 0.47248618007948,
+      "contrast": 0.17074363968575518,
+      "edges": 0.04461848695797592
+    },
+    "diff": {
+      "luminance": 0.00010969808035311687,
+      "contrast": 0.0003599442608269844,
+      "edges": 0.26084740274087775
+    },
+    "pass": true,
+    "failing": [],
+    "edgeWarn": true,
+    "complexityIsSignal": false
+  },
+  {
+    "pair": 10,
+    "a": {
+      "luminance": 0.4583467743149716,
+      "contrast": 0.19068089280329,
+      "edges": 0.23666177161981047
+    },
+    "b": {
+      "luminance": 0.4580493899189181,
+      "contrast": 0.19000086753763773,
+      "edges": 0.13329015482474435
+    },
+    "diff": {
+      "luminance": 0.0006488196551573748,
+      "contrast": 0.003566299987664761,
+      "edges": 0.43679051368350824
+    },
+    "pass": true,
+    "failing": [],
+    "edgeWarn": true,
+    "complexityIsSignal": false
+  },
+  {
+    "pair": 11,
+    "a": {
+      "luminance": 0.5267789157879694,
+      "contrast": 0.18307753659828746,
+      "edges": 0.13625753704842908
+    },
+    "b": {
+      "luminance": 0.526759207783228,
+      "contrast": 0.1823290635066154,
+      "edges": 0.15291308305618972
+    },
+    "diff": {
+      "luminance": 0.00003741228843964149,
+      "contrast": 0.0040882846993641475,
+      "edges": 0.1089216545430607
+    },
+    "pass": true,
+    "failing": [],
+    "edgeWarn": false,
+    "complexityIsSignal": false
+  },
+  {
+    "pair": 12,
+    "a": {
+      "luminance": 0.604021969189198,
+      "contrast": 0.2138448502938037,
+      "edges": 0.1324013575345297
+    },
+    "b": {
+      "luminance": 0.6036578454773553,
+      "contrast": 0.21381134677943323,
+      "edges": 0.16625788224935562
+    },
+    "diff": {
+      "luminance": 0.0006028319008519958,
+      "contrast": 0.0001566720653990503,
+      "edges": 0.2036386140420548
+    },
+    "pass": true,
+    "failing": [],
+    "edgeWarn": false,
+    "complexityIsSignal": true
+  }
+]
