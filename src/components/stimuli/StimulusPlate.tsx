@@ -9,8 +9,16 @@ import type { StimulusImage } from '@/lib/stimuli/pairs';
 /**
  * 자극 한 장.
  *
- * 사진이 확정되면 src를 채우고, 그 전까지는 모티프 생성 아트가 자리를 지킨다.
- * 두 장이 나란히 놓이므로 테두리·여백·라벨 위치가 완전히 같아야 한다.
+ * **화면에 글자를 붙이지 않는다.**
+ * "공구를 다루는 정비 작업장" 같은 설명이 사진 밑에 있으면 참가자는 그림이 아니라
+ * 그 문장을 읽고 판단하게 된다. 그 순간 이 세션은 무의식적 선호가 아니라
+ * 자기보고형 선택지 고르기가 된다 — 재려던 것과 정반대다.
+ * 글자 자체가 시선을 강하게 끄는 데다, 두 라벨의 길이가 다르면 그것도 저수준 편향이다.
+ *
+ * 라벨은 alt 속성으로만 남긴다. 화면에는 안 보이고 스크린리더에는 읽힌다.
+ * (리플레이·퀴즈·영수증에서 쓰는 label 자체는 그대로다. 노출 중에만 감춘다.)
+ *
+ * 두 장이 나란히 놓이므로 테두리·여백·크기가 완전히 같아야 한다.
  * 한쪽만 조금 크거나 밝으면 그게 곧 편향이 된다.
  *
  * 사진을 못 불러오면 모티프 아트로 되돌아간다. 부스에서 한쪽 판만 비어 있으면
@@ -33,11 +41,13 @@ export default function StimulusPlate({
 
   return (
     <motion.figure
-      className={`relative flex min-h-0 flex-col overflow-hidden rounded-[4px] border border-line bg-surface-sunken ${className}`}
+      className={`relative overflow-hidden rounded-[4px] border border-line bg-surface-sunken ${className}`}
       animate={{ opacity: active ? 1 : 0.14 }}
       transition={{ duration: 0.55, ease: [0.22, 0.61, 0.36, 1] }}
     >
-      <div className="relative min-h-0 flex-1">
+      {/* 사진이 판 전체를 채운다. 라벨이 있던 시절에는 그 높이만큼 사진이
+          잘려 나가고 있었다 — 이제 4:3 원본이 잘리지 않고 그대로 들어간다. */}
+      <div className="absolute inset-0">
         {usePhoto ? (
           <Image
             src={image.src as string}
@@ -73,10 +83,6 @@ export default function StimulusPlate({
           </svg>
         )}
       </div>
-
-      <figcaption className="shrink-0 border-t border-line bg-surface-raised px-4 py-3 text-center text-[14px] font-semibold leading-snug text-ink-2">
-        {image.label}
-      </figcaption>
     </motion.figure>
   );
 }
