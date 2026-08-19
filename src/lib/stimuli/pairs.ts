@@ -1,7 +1,9 @@
 /**
  * 상세기획안.md 부록 A — 자극 사진쌍 리스트 (총 12쌍)
  * Group 1: 직업 성향 축 (RIASEC, 1~6번) / Group 2: 성향·가치 축 (7~12번)
- * 실제 사진은 미확정이므로 src는 전부 null, 플레이스홀더 렌더링에는 motif/keyword를 쓴다.
+ * 사진은 scripts/import-stimuli.mjs가 반입한 public/stimuli/ 파일을 가리킨다.
+ * motif/keyword는 지우지 않는다 — 사진 로딩이 실패하면 StimulusPlate가
+ * 모티프 아트로 되돌아가고, 부스에서 판이 비는 것보다 그게 낫다.
  */
 
 /** 자극쌍이 기여하는 축 */
@@ -75,13 +77,13 @@ export const STIMULUS_PAIRS: StimulusPair[] = [
     axisLabel: 'R ↔ S',
     a: {
       label: '공구를 다루는 정비 작업장',
-      src: null,
+      src: '/stimuli/01a.jpg',
       keyword: 'mechanic workshop tools',
       motif: 'workshop',
     },
     b: {
       label: '아이를 돌보는 교사',
-      src: null,
+      src: '/stimuli/01b.jpg',
       keyword: 'teacher helping child',
       motif: 'caregiving',
     },
@@ -95,13 +97,13 @@ export const STIMULUS_PAIRS: StimulusPair[] = [
     axisLabel: 'I ↔ E',
     a: {
       label: '현미경을 들여다보는 실험실',
-      src: null,
+      src: '/stimuli/02a.jpg',
       keyword: 'laboratory microscope',
       motif: 'laboratory',
     },
     b: {
       label: '무대에서 발표하는 리더',
-      src: null,
+      src: '/stimuli/02b.jpg',
       keyword: 'keynote stage presentation',
       motif: 'stage',
     },
@@ -115,13 +117,13 @@ export const STIMULUS_PAIRS: StimulusPair[] = [
     axisLabel: 'A ↔ C',
     a: {
       label: '물감이 널린 작업실',
-      src: null,
+      src: '/stimuli/03a.jpg',
       keyword: 'messy art studio paint',
       motif: 'art-studio',
     },
     b: {
       label: '정돈된 사무·데이터 화면',
-      src: null,
+      src: '/stimuli/03b.jpg',
       keyword: 'organized desk spreadsheet',
       motif: 'spreadsheet',
     },
@@ -135,13 +137,13 @@ export const STIMULUS_PAIRS: StimulusPair[] = [
     axisLabel: 'R ↔ S',
     a: {
       label: '목공 작업대에서 손으로 만드는 장면',
-      src: null,
+      src: '/stimuli/04a.jpg',
       keyword: 'woodworking hands',
       motif: 'woodworking',
     },
     b: {
       label: '환자를 돌보는 의료·상담 장면',
-      src: null,
+      src: '/stimuli/04b.jpg',
       keyword: 'nurse caring patient',
       motif: 'clinic',
     },
@@ -155,13 +157,13 @@ export const STIMULUS_PAIRS: StimulusPair[] = [
     axisLabel: 'I ↔ E',
     a: {
       label: '수식이 가득한 화이트보드',
-      src: null,
+      src: '/stimuli/05a.jpg',
       keyword: 'whiteboard equations',
       motif: 'whiteboard',
     },
     b: {
       label: '계약·협상 회의',
-      src: null,
+      src: '/stimuli/05b.jpg',
       keyword: 'business negotiation handshake',
       motif: 'handshake',
     },
@@ -175,13 +177,13 @@ export const STIMULUS_PAIRS: StimulusPair[] = [
     axisLabel: 'A ↔ C',
     a: {
       label: '악기를 연주하는 장면',
-      src: null,
+      src: '/stimuli/06a.jpg',
       keyword: 'playing instrument',
       motif: 'instrument',
     },
     b: {
       label: '서류·장부를 정리하는 장면',
-      src: null,
+      src: '/stimuli/06b.jpg',
       keyword: 'filing documents archive',
       motif: 'archive',
     },
@@ -197,13 +199,13 @@ export const STIMULUS_PAIRS: StimulusPair[] = [
     axisLabel: '개방성',
     a: {
       label: '추상 회화',
-      src: null,
+      src: '/stimuli/07a.jpg',
       keyword: '추상화 등급 상위',
       motif: 'abstract-painting',
     },
     b: {
       label: '고전 사실주의 회화',
-      src: null,
+      src: '/stimuli/07b.jpg',
       keyword: 'Realism·Baroque 사조',
       motif: 'classical-painting',
     },
@@ -217,13 +219,13 @@ export const STIMULUS_PAIRS: StimulusPair[] = [
     axisLabel: '사회적 에너지',
     a: {
       label: '북적이는 축제·군중',
-      src: null,
+      src: '/stimuli/08a.jpg',
       keyword: 'Crowd, Party',
       motif: 'crowd',
     },
     b: {
       label: '혼자만의 조용한 공간',
-      src: null,
+      src: '/stimuli/08b.jpg',
       keyword: 'Lake, Cabin',
       motif: 'cabin',
     },
@@ -237,13 +239,13 @@ export const STIMULUS_PAIRS: StimulusPair[] = [
     axisLabel: '가치관(환경)',
     a: {
       label: '산·숲의 자연',
-      src: null,
+      src: '/stimuli/09a.jpg',
       keyword: 'Mountain, Forest',
       motif: 'mountain',
     },
     b: {
       label: '네온 도시 야경',
-      src: null,
+      src: '/stimuli/09b.jpg',
       keyword: 'City night',
       motif: 'city-night',
     },
@@ -257,13 +259,13 @@ export const STIMULUS_PAIRS: StimulusPair[] = [
     axisLabel: '가치관(모험)',
     a: {
       label: '절벽 끝·암벽등반',
-      src: null,
+      src: '/stimuli/10a.jpg',
       keyword: 'Cliff, Climbing',
       motif: 'cliff',
     },
     b: {
       label: '아늑한 집 거실',
-      src: null,
+      src: '/stimuli/10b.jpg',
       keyword: 'Living room',
       motif: 'living-room',
     },
@@ -277,13 +279,13 @@ export const STIMULUS_PAIRS: StimulusPair[] = [
     axisLabel: '가치관(소비)',
     a: {
       label: '럭셔리 인테리어·고급차',
-      src: null,
+      src: '/stimuli/11a.jpg',
       keyword: 'luxury interior',
       motif: 'luxury',
     },
     b: {
       label: '미니멀 화이트 공간',
-      src: null,
+      src: '/stimuli/11b.jpg',
       keyword: 'minimal white room',
       motif: 'minimal',
     },
@@ -297,13 +299,13 @@ export const STIMULUS_PAIRS: StimulusPair[] = [
     axisLabel: '스트레스 반응',
     a: {
       label: '어수선한 책상',
-      src: null,
+      src: '/stimuli/12a.jpg',
       keyword: '동일 공간·동일 조명에서 상태만 변경',
       motif: 'messy-desk',
     },
     b: {
       label: '정돈된 책상',
-      src: null,
+      src: '/stimuli/12b.jpg',
       keyword: '동일 공간·동일 조명에서 상태만 변경',
       motif: 'tidy-desk',
     },
