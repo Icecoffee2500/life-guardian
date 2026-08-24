@@ -16,13 +16,35 @@ import type { BioSample, SourceKind, SourceMode } from './types';
 const BAUD_RATE = 115200;
 
 /**
+ * 무착용 기준값 — 전극을 빼놓았을 때 읽히는 raw.
+ *
+ * Seeed 절차는 이 값이 512가 되도록 보드의 트림팟을 돌리라고 한다.
+ * 우리는 반대로 했다. 돌리는 대신 **실측해서 상수로 박는다.**
+ * 부스에서 드라이버로 나사를 만질 일이 없어지고, 값이 문서로 남는다.
+ *
+ * ── 2026-08 실측 (Grove GSR + Uno, A2) ────────────────────────
+ *   전극 분리(책상 위) → 682.8   (범위 682~683, 표준편차 0.42)
+ *   전극 착용·안정     → 486
+ *
+ * 이 상수가 왜 중요한가: 식의 분모는 (기준값 - raw)이고, 이건
+ * "피부가 기준선을 얼마나 끌어내렸는가" = 전도도의 크기다.
+ * 512로 두면 착용 시 197이어야 할 신호를 26으로 읽는다 — 실제의 1/7.
+ * 그러면 전도도가 0.8µS 같은 값이 나오는데, 사람 피부는 1~20µS다.
+ * 즉 기준값이 틀리면 신호가 조용히 뭉개진다. 오류로 보이지 않는 게 함정이다.
+ *
+ * 모듈을 바꾸면(우리는 5개를 샀다) 반드시 다시 재고, 개체별로 다르면
+ * 생성자 인자로 넘긴다. 재는 법은 arduino/gsr_stream.ino 주석 참고.
+ */
+export const GSR_CALIBRATION = 683;
+
+/**
  * Grove GSR raw(0~1023) → 피부 전도도(µS).
  *
  * Seeed Grove GSR v1.2 데이터시트의 환산식을 전도도로 뒤집은 것:
- *   human_resistance = ((1024 + 2 * raw) * 10000) / (512 - raw)   [Ω]
+ *   human_resistance = ((1024 + 2 * raw) * 10000) / (기준값 - raw)   [Ω]
  *   conductance(µS)  = 1e6 / resistance
  *
- * raw가 512에 가까워지면 저항이 발산하므로 분모를 막아 둔다.
+ * raw가 기준값에 닿으면 저항이 발산하므로 분모를 막아 둔다.
  * 이 값은 절대 정확도가 아니라 **자기 대비 변화**를 보려는 것이다.
  *
  * ⚠ 극성(POLARITY)을 실기기로 반드시 확인할 것.
@@ -41,31 +63,26 @@ const BAUD_RATE = 115200;
 export const GSR_POLARITY: 1 | -1 = 1;
 
 /**
- * 변환식이 의미를 갖는 raw 상한.
+ * 접촉이 살아 있다고 볼 수 있는 raw 상한.
  *
- * 데이터시트 식의 분모가 (512 - raw)라 raw가 512에 닿으면 저항이 발산한다.
- * 그 근처에서는 전도도가 전부 바닥(0.05µS)에 붙어 SCR이 통째로 사라진다.
- * 여유를 두고 495를 상한으로 잡는다.
+ * raw가 기준값에 가까워질수록 전도도는 0으로 수렴한다 = 피부가 회로에
+ * 물려 있지 않다는 뜻이다. 기준값에서 30 눈금 안쪽이면 접촉이 없다고 본다.
+ * (실측에서 착용 486 / 분리 683이므로 신호 폭은 197. 30은 그 15% 수준이다)
  *
- * ── 2026-08 실측 (Grove GSR + Uno, A2) ────────────────────────
- *   전극 착용·안정 → raw 486   (특이점까지 여유가 26밖에 없다)
- *   전극 분리      → raw 683 에 고정 (증폭기 포화)
- *
- * 두 번째 값이 중요하다. 개방 회로가 ADC 최대치(1023)로 가지 않고 중간에서
- * 멈춘다. 그래서 레일 기준(raw > 1010)으로 접촉 불량을 잡으려던 원래 규칙은
- * 이 하드웨어에서 한 번도 발화하지 않았다 — 전극이 빠진 채로도 '정상'이었다.
- * 대신 "변환식이 성립하는가"를 기준으로 삼는다. 이건 하드웨어가 바뀌어도
- * 무너지지 않는다.
- *
- * 안정 시 raw가 이 값을 넘으면 모듈의 트림팟을 돌려 400~450 대로 내린다.
+ * 원래 이 판정은 ADC 레일 기준(raw > 1010)이었다. 실측에서 전극을 분리했을 때
+ * 값이 1023이 아니라 683에서 멈추는 걸 보고서야 그 규칙이 이 하드웨어에서
+ * 한 번도 발화하지 않는다는 걸 알았다 — 전극이 빠진 채로도 계속 '정상'이었다.
+ * 그래서 고정 숫자가 아니라 **기준값에 상대적인** 판정으로 바꿨다.
  */
-export const GSR_RAW_USABLE_MAX = 495;
+export const GSR_RAW_CONTACT_MAX = GSR_CALIBRATION - 30;
 
-export function rawToMicroSiemens(raw: number): number {
+export function rawToMicroSiemens(raw: number, calibration = GSR_CALIBRATION): number {
   const r0 = Math.min(1023, Math.max(0, raw));
   // 극성이 반대면 ADC 눈금을 뒤집어 읽는다
-  const r = Math.min(511, GSR_POLARITY === 1 ? r0 : 1023 - r0);
-  const resistance = ((1024 + 2 * r) * 10000) / Math.max(1, 512 - r);
+  const r1 = GSR_POLARITY === 1 ? r0 : 1023 - r0;
+  // 기준값에 닿으면 분모가 0이 된다. 한 눈금 아래에서 막는다.
+  const r = Math.min(calibration - 1, r1);
+  const resistance = ((1024 + 2 * r) * 10000) / Math.max(1, calibration - r);
   const us = 1e6 / resistance;
   // 사람 피부에서 나올 수 있는 범위를 넘으면 접촉 불량이다
   return Math.min(60, Math.max(0.05, us));
@@ -99,7 +116,14 @@ export class SerialGsrSource extends BaseSource<BioSample> {
   /** 변환식 밖으로 나간 표본이 연속으로 몇 개인지 (약 0.8초= 20표본이면 경고) */
   private badStreak = 0;
 
-  constructor(private clock: SessionClock = sessionClock) {
+  /**
+   * @param calibration 이 모듈의 무착용 기준값. 개체마다 다를 수 있으므로
+   *   부스에서 다른 GSR 모듈을 쓰면 재서 넘긴다 (기본값은 우리가 실측한 것).
+   */
+  constructor(
+    private clock: SessionClock = sessionClock,
+    private calibration: number = GSR_CALIBRATION,
+  ) {
     super();
   }
 
@@ -168,26 +192,25 @@ export class SerialGsrSource extends BaseSource<BioSample> {
     const parsed = parseLine(line);
     if (!parsed) return;
 
-    const us = rawToMicroSiemens(parsed.raw);
+    const us = rawToMicroSiemens(parsed.raw, this.calibration);
 
     /*
-     * 신호가 쓸 수 있는 상태인지 매 표본 확인한다.
+     * 접촉이 살아 있는지 매 표본 확인한다.
      *
-     * raw가 GSR_RAW_USABLE_MAX 위로 올라가면 둘 중 하나다:
-     *   - 전극이 떨어졌다 (개방 회로 → 증폭기 포화)
-     *   - 트림팟이 덜 조여져 안정값이 특이점 근처에 앉아 있다
-     * 어느 쪽이든 그 구간의 전도도는 의미가 없다. 조용히 통과시키면
-     * 해석 엔진이 '각성이 없었다'로 읽어버리므로 품질을 내리고 이유를 남긴다.
+     * raw가 기준값 근처면 피부가 회로에 물려 있지 않다는 뜻이다. 그 구간의
+     * 전도도는 의미가 없는데, 조용히 통과시키면 해석 엔진이 '각성이 없었다'로
+     * 읽어버린다. 신호가 없는 것과 반응이 없는 것은 다르다.
      */
-    const unusable = parsed.raw >= GSR_RAW_USABLE_MAX || parsed.raw < 12;
+    const contactMax = this.calibration - 30;
+    const unusable = parsed.raw >= contactMax || parsed.raw < 12;
     if (unusable) this.badStreak++;
     else this.badStreak = 0;
 
     if (this.badStreak > 20) {
       this._quality = 'degraded';
       this._error =
-        parsed.raw >= GSR_RAW_USABLE_MAX
-          ? `GSR raw ${parsed.raw} — 전극이 떨어졌거나 트림팟 조정이 필요합니다 (목표 400~450)`
+        parsed.raw >= contactMax
+          ? `GSR raw ${parsed.raw} — 전극 접촉을 확인하세요 (무착용 기준값 ${this.calibration})`
           : `GSR raw ${parsed.raw} — 배선을 확인하세요`;
     } else if (this.badStreak === 0 && this._quality === 'degraded') {
       this._quality = 'ok';
