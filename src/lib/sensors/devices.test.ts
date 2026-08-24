@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { parseHeartRate } from './ble-heart-rate';
-import { parseLine, rawToMicroSiemens } from './serial-gsr';
+import { GSR_RAW_USABLE_MAX, parseLine, rawToMicroSiemens } from './serial-gsr';
 
 /**
  * 실기기가 배송 전이라 이 테스트가 유일한 검증 수단이다.
@@ -93,6 +93,30 @@ describe('Grove GSR 변환', () => {
     const v = rawToMicroSiemens(380);
     expect(v).toBeGreaterThan(1);
     expect(v).toBeLessThan(30);
+  });
+
+  /**
+   * 아래 두 개는 2026-08 실측에서 나온 값을 그대로 박아 둔 회귀 테스트다.
+   * 전극을 뗐을 때 raw가 683에서 멈추는 것을 보고서야, 레일(>1010) 기준으로
+   * 접촉 불량을 잡으려던 원래 규칙이 이 하드웨어에서 무용지물임을 알았다.
+   */
+  it('사용 가능 상한은 변환식 특이점(512)보다 낮다', () => {
+    expect(GSR_RAW_USABLE_MAX).toBeLessThan(512);
+  });
+
+  it('실측된 개방 회로 값(683)은 사용 불가로 걸러진다', () => {
+    // 전극 분리 시 ADC 최대치가 아니라 중간값에서 포화한다
+    expect(683).toBeGreaterThanOrEqual(GSR_RAW_USABLE_MAX);
+  });
+
+  it('상한을 넘으면 전도도가 사람 피부 범위 아래로 무너진다', () => {
+    // 사람의 피부 전도도는 대체로 1~20µS 대역이다.
+    // 상한 근처에서는 그 아래로 내려가 SCR이 앉을 자리가 없어진다 —
+    // 상한을 두는 이유가 이것이다.
+    expect(rawToMicroSiemens(GSR_RAW_USABLE_MAX)).toBeLessThan(1);
+    expect(rawToMicroSiemens(511)).toBeLessThan(0.1);
+    // 트림팟을 제대로 맞춘 대역은 사람 범위 안에 들어온다
+    expect(rawToMicroSiemens(430)).toBeGreaterThan(1);
   });
 });
 

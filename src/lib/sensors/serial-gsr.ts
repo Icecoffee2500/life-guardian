@@ -40,6 +40,27 @@ const BAUD_RATE = 115200;
  */
 export const GSR_POLARITY: 1 | -1 = 1;
 
+/**
+ * 변환식이 의미를 갖는 raw 상한.
+ *
+ * 데이터시트 식의 분모가 (512 - raw)라 raw가 512에 닿으면 저항이 발산한다.
+ * 그 근처에서는 전도도가 전부 바닥(0.05µS)에 붙어 SCR이 통째로 사라진다.
+ * 여유를 두고 495를 상한으로 잡는다.
+ *
+ * ── 2026-08 실측 (Grove GSR + Uno, A2) ────────────────────────
+ *   전극 착용·안정 → raw 486   (특이점까지 여유가 26밖에 없다)
+ *   전극 분리      → raw 683 에 고정 (증폭기 포화)
+ *
+ * 두 번째 값이 중요하다. 개방 회로가 ADC 최대치(1023)로 가지 않고 중간에서
+ * 멈춘다. 그래서 레일 기준(raw > 1010)으로 접촉 불량을 잡으려던 원래 규칙은
+ * 이 하드웨어에서 한 번도 발화하지 않았다 — 전극이 빠진 채로도 '정상'이었다.
+ * 대신 "변환식이 성립하는가"를 기준으로 삼는다. 이건 하드웨어가 바뀌어도
+ * 무너지지 않는다.
+ *
+ * 안정 시 raw가 이 값을 넘으면 모듈의 트림팟을 돌려 400~450 대로 내린다.
+ */
+export const GSR_RAW_USABLE_MAX = 495;
+
 export function rawToMicroSiemens(raw: number): number {
   const r0 = Math.min(1023, Math.max(0, raw));
   // 극성이 반대면 ADC 눈금을 뒤집어 읽는다
@@ -75,8 +96,8 @@ export class SerialGsrSource extends BaseSource<BioSample> {
   private port: SerialPort | null = null;
   private reader: ReadableStreamDefaultReader<Uint8Array> | null = null;
   private stopped = false;
-  /** 접촉 불량 감시 — 값이 바닥에 붙어 있으면 전극이 떨어진 것이다 */
-  private lowStreak = 0;
+  /** 변환식 밖으로 나간 표본이 연속으로 몇 개인지 (약 0.8초= 20표본이면 경고) */
+  private badStreak = 0;
 
   constructor(private clock: SessionClock = sessionClock) {
     super();
@@ -148,10 +169,30 @@ export class SerialGsrSource extends BaseSource<BioSample> {
     if (!parsed) return;
 
     const us = rawToMicroSiemens(parsed.raw);
-    // 전극이 떨어지면 raw가 한쪽 끝에 붙는다. 2초쯤 이어지면 품질을 내린다.
-    if (parsed.raw < 12 || parsed.raw > 1010) this.lowStreak++;
-    else this.lowStreak = 0;
-    this._quality = this.lowStreak > 20 ? 'degraded' : 'ok';
+
+    /*
+     * 신호가 쓸 수 있는 상태인지 매 표본 확인한다.
+     *
+     * raw가 GSR_RAW_USABLE_MAX 위로 올라가면 둘 중 하나다:
+     *   - 전극이 떨어졌다 (개방 회로 → 증폭기 포화)
+     *   - 트림팟이 덜 조여져 안정값이 특이점 근처에 앉아 있다
+     * 어느 쪽이든 그 구간의 전도도는 의미가 없다. 조용히 통과시키면
+     * 해석 엔진이 '각성이 없었다'로 읽어버리므로 품질을 내리고 이유를 남긴다.
+     */
+    const unusable = parsed.raw >= GSR_RAW_USABLE_MAX || parsed.raw < 12;
+    if (unusable) this.badStreak++;
+    else this.badStreak = 0;
+
+    if (this.badStreak > 20) {
+      this._quality = 'degraded';
+      this._error =
+        parsed.raw >= GSR_RAW_USABLE_MAX
+          ? `GSR raw ${parsed.raw} — 전극이 떨어졌거나 트림팟 조정이 필요합니다 (목표 400~450)`
+          : `GSR raw ${parsed.raw} — 배선을 확인하세요`;
+    } else if (this.badStreak === 0 && this._quality === 'degraded') {
+      this._quality = 'ok';
+      this._error = undefined;
+    }
 
     // 기기 시각이 아니라 세션 시각을 쓴다. 여러 소스를 한 축에 정렬해야 한다.
     this.push({ t: this.clock.now(), gsr: us });
