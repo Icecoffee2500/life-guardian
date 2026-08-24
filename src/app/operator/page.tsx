@@ -196,7 +196,8 @@ export default function OperatorPage() {
   const back = useSession((s) => s.back);
   const reset = useSession((s) => s.reset);
 
-  const localSources = useSourceSnapshots();
+  // 1초마다 다시 읽는다 — 실효 Hz는 상태가 '수신'인 채로 변하기 때문이다
+  const localSources = useSourceSnapshots(1000);
   const [recent, setRecent] = useState<SessionRecord[]>([]);
 
   useEffect(() => {
@@ -353,6 +354,7 @@ export default function OperatorPage() {
                       <span className="t-body-strong text-ink">{s.label}</span>
                       <span className="t-label ml-2">
                         {s.status} · {s.quality}
+                        {s.hz !== undefined && ` · ${s.hz.toFixed(0)}Hz`}
                       </span>
                       {s.error && <span className="t-label mt-0.5 block text-warn">{s.error}</span>}
                     </div>

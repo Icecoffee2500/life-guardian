@@ -93,4 +93,11 @@ export interface SourceSnapshot {
   status: SourceStatus;
   quality: SignalQuality;
   error?: string;
+  /**
+   * 실효 샘플레이트(Hz). 표본이 아직 없으면 undefined.
+   *
+   * 상태가 '수신'인데 이 값이 기대치의 절반이라면 신호는 흐르지만 절반을 흘리고 있다는
+   * 뜻이다. 실기기 연동에서 이런 조용한 손실을 실제로 겪었기 때문에 노출한다.
+   */
+  hz?: number;
 }

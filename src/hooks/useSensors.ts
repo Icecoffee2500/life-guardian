@@ -131,9 +131,21 @@ export function useSensorSetup(signalMode: SignalMode, personaId: PersonaId, ena
 }
 
 /** 연결 상태 스냅샷 구독 (S1 연결 씬·진행자 대시보드) */
-export function useSourceSnapshots(): SourceSnapshot[] {
+/**
+ * @param pollMs 0보다 크면 그 주기로 다시 읽는다.
+ *
+ * 스냅샷 방송은 상태가 바뀔 때만 일어난다. 그런데 실효 Hz는 상태가 '수신'인 채로
+ * 계속 변한다 — 조용한 표본 손실이 바로 그 모습이다. 그걸 보려면 폴링이 필요하다.
+ * 진행자 화면에서만 켠다. 체험 화면은 이 숫자를 쓰지 않으므로 리렌더할 이유가 없다.
+ */
+export function useSourceSnapshots(pollMs = 0): SourceSnapshot[] {
   const [sources, setSources] = useState<SourceSnapshot[]>(() => sensorHub.sources());
   useEffect(() => sensorHub.onSources(setSources), []);
+  useEffect(() => {
+    if (pollMs <= 0) return;
+    const id = setInterval(() => setSources(sensorHub.sources()), pollMs);
+    return () => clearInterval(id);
+  }, [pollMs]);
   return sources;
 }
 

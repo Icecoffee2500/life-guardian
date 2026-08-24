@@ -66,6 +66,11 @@ export const SETTLE_WINDOW_MS = 20000;
 /** RSA를 걷어내기 위한 이동평균 창 — 한 호흡 주기보다 약간 길게 */
 export const SETTLE_SMOOTH_MS = 5000;
 
+/** 실효 샘플레이트를 재는 창. 짧으면 튀고, 길면 끊긴 걸 늦게 안다. */
+const RATE_WINDOW_MS = 3000;
+/** 이만큼 표본이 없으면 느린 게 아니라 멈춘 것이다 */
+const RATE_STALE_MS = 2000;
+
 /**
  * SensorHub — 여러 소스의 스트림을 하나로 통합하고, 파생 지표를 계산해 UI에 흘린다.
  *
@@ -76,6 +81,8 @@ export class SensorHub {
   private gaze: GazeSource | null = null;
   /** 소스별 구독 해제 함수. 소스 하나만 교체할 때 그것만 떼어내려면 연결이 필요하다. */
   private unsubs = new Map<BioSource | GazeSource, (() => void)[]>();
+  /** 소스별 최근 표본 도착 시각 — 실효 샘플레이트 계산용 */
+  private arrivals = new Map<BioSource | GazeSource, number[]>();
   private listeners = new Set<(m: LiveMetrics) => void>();
   private snapshotListeners = new Set<(s: SourceSnapshot[]) => void>();
 
@@ -93,7 +100,10 @@ export class SensorHub {
   attachBio(source: BioSource): void {
     this.bio.push(source);
     this.unsubs.set(source, [
-      source.subscribe((s) => this.onBio(s)),
+      source.subscribe((s) => {
+        this.markArrival(source);
+        this.onBio(s);
+      }),
       source.onStatusChange(() => this.emitSnapshots()),
     ]);
     this.emitSnapshots();
@@ -102,15 +112,47 @@ export class SensorHub {
   attachGaze(source: GazeSource): void {
     this.gaze = source;
     this.unsubs.set(source, [
-      source.subscribe((s) => this.onGaze(s)),
+      source.subscribe((s) => {
+        this.markArrival(source);
+        this.onGaze(s);
+      }),
       source.onStatusChange(() => this.emitSnapshots()),
     ]);
     this.emitSnapshots();
   }
 
+  /**
+   * 표본이 실제로 도착한 시각을 기록한다 (기기 타임스탬프가 아니라 벽시계).
+   *
+   * 재는 것은 "신호가 오는가"가 아니라 "기대한 만큼 오는가"다. 실기기 연동에서
+   * 두 프로세스가 같은 시리얼 포트를 잡고 바이트를 나눠 가져 25Hz가 12Hz로
+   * 반토막 난 적이 있다. 그때 상태는 내내 '수신'이었다 — 화면상으로는 멀쩡했다.
+   */
+  private markArrival(source: BioSource | GazeSource): void {
+    const now = Date.now();
+    const arr = this.arrivals.get(source) ?? [];
+    arr.push(now);
+    const cutoff = now - RATE_WINDOW_MS;
+    while (arr.length > 0 && arr[0] < cutoff) arr.shift();
+    this.arrivals.set(source, arr);
+  }
+
+  /** 최근 창의 실효 Hz. 표본이 끊긴 지 오래면 0. */
+  private hzOf(source: BioSource | GazeSource): number | undefined {
+    const arr = this.arrivals.get(source);
+    if (!arr || arr.length < 2) return undefined;
+    const last = arr[arr.length - 1];
+    // 한동안 아무것도 안 왔으면 '느리다'가 아니라 '멈췄다'로 보여야 한다
+    if (Date.now() - last > RATE_STALE_MS) return 0;
+    const span = (last - arr[0]) / 1000;
+    if (span <= 0) return undefined;
+    return (arr.length - 1) / span;
+  }
+
   private unsubscribeFor(source: BioSource | GazeSource): void {
     for (const u of this.unsubs.get(source) ?? []) u();
     this.unsubs.delete(source);
+    this.arrivals.delete(source);
   }
 
   /**
@@ -162,6 +204,7 @@ export class SensorHub {
       status: s.status,
       quality: s.quality,
       error: s.error,
+      hz: this.hzOf(s),
     }));
   }
 

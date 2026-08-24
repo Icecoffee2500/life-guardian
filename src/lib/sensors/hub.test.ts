@@ -139,3 +139,39 @@ describe('시선 좌표 노출', () => {
     expect(rec.gaze).toHaveLength(2);
   });
 });
+
+describe('실효 샘플레이트', () => {
+  /**
+   * 이 지표는 "신호가 오는가"가 아니라 "기대한 만큼 오는가"를 본다.
+   * 실기기 연동에서 두 프로세스가 같은 시리얼 포트를 잡고 바이트를 나눠 가져
+   * 25Hz가 12Hz로 반토막 났는데, 그동안 상태는 내내 '수신'이었다.
+   */
+  it('표본이 없으면 Hz를 만들어내지 않는다', () => {
+    const hub = new SensorHub(new SessionRecorder(), new ExperienceBus());
+    const src = new FeedSource();
+    hub.attachBio(src);
+    expect(hub.sources()[0].hz).toBeUndefined();
+
+    // 한 개만으로는 간격을 알 수 없다
+    src.feed({ t: 0, hr: 70 });
+    expect(hub.sources()[0].hz).toBeUndefined();
+  });
+
+  it('도착 간격에서 Hz를 계산한다', async () => {
+    const hub = new SensorHub(new SessionRecorder(), new ExperienceBus());
+    const src = new FeedSource();
+    hub.attachBio(src);
+
+    // 벽시계 기준이므로 실제로 시간을 흘려보내며 넣는다
+    for (let i = 0; i < 6; i++) {
+      src.feed({ t: i * 20, hr: 70 });
+      await new Promise((r) => setTimeout(r, 20));
+    }
+
+    const hz = hub.sources()[0].hz;
+    expect(hz).toBeDefined();
+    // 20ms 간격 ≈ 50Hz. 타이머 정확도가 낮으므로 범위로만 확인한다.
+    expect(hz!).toBeGreaterThan(15);
+    expect(hz!).toBeLessThan(90);
+  });
+});
