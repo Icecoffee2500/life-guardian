@@ -72,6 +72,14 @@ const RATE_WINDOW_MS = 3000;
 const RATE_STALE_MS = 2000;
 
 /**
+ * RR이 이만큼 끊기면 HRV를 지운다.
+ *
+ * RMSSD 창이 30초이므로 그보다는 짧아야 하고, 광학 센서가 한두 박동을 놓치는
+ * 정도로 깜빡여서는 안 된다. 10초면 둘 다 만족한다.
+ */
+const RR_STALE_MS = 10000;
+
+/**
  * SensorHub — 여러 소스의 스트림을 하나로 통합하고, 파생 지표를 계산해 UI에 흘린다.
  *
  * 소스가 시뮬레이터든 실기기든 여기서부터는 구분이 없다.
@@ -87,6 +95,8 @@ export class SensorHub {
   private snapshotListeners = new Set<(s: SourceSnapshot[]) => void>();
 
   private metrics: LiveMetrics = { ...EMPTY_METRICS };
+  /** 마지막으로 RR이 도착한 세션 시각. HRV가 멈춘 채 남아 있지 않게 하는 데 쓴다. */
+  private lastRrT: number | null = null;
   private settleSince: number | null = null;
   private settledAt: number | null = null;
   /** 안정 판정을 감시할지 여부 (S2/S3에서만 켠다) */
@@ -169,7 +179,30 @@ export class SensorHub {
       old.disconnect();
       this.bio.splice(i, 1);
     }
+    /*
+     * 교체된 소스가 남긴 파생 지표를 지운다.
+     *
+     * 기록(recorder)은 일부러 이어가지만, 화면에 떠 있는 '지금 값'은 다르다.
+     * 시뮬레이터를 실기기로 바꾸는 순간부터 그 숫자는 참가자의 것이어야 한다.
+     * 새 소스가 아직 아무것도 안 보냈다면 빈칸이 맞다 — 이전 소스의 값을
+     * 물려주면 시뮬레이터가 만든 수치가 실측인 척하게 된다.
+     */
+    this.clearMetricsFor(kind);
     this.attachBio(next);
+  }
+
+  private clearMetricsFor(kind: SourceKind): void {
+    if (kind === 'band') {
+      this.metrics.hr = null;
+      this.metrics.rmssd = null;
+      this.metrics.lastBeatT = null;
+      this.metrics.beatPhase = 0;
+      this.lastRrT = null;
+    } else if (kind === 'gsr') {
+      this.metrics.gsr = null;
+      this.metrics.gsrDelta = 0;
+    }
+    for (const cb of this.listeners) cb(this.metrics);
   }
 
   replaceGaze(next: GazeSource): void {
@@ -256,11 +289,23 @@ export class SensorHub {
     }
     if (s.rr && s.rr.length) {
       for (const v of s.rr) r.pushRr(s.t, v);
+      this.lastRrT = s.t;
       this.metrics.lastBeatT = s.t;
       this.metrics.beatPhase = 0;
       const recent = slice(r.rr, s.t - 30000, s.t + 1).map((p) => p.v);
       const v = rmssd(recent);
       if (isFinite(v)) this.metrics.rmssd = v;
+    } else if (this.lastRrT !== null && s.t - this.lastRrT > RR_STALE_MS) {
+      /*
+       * RR이 끊기면 HRV를 지운다.
+       *
+       * 지우지 않으면 마지막 값이 화면에 그대로 남는다. 멈춘 숫자는 없는 것보다
+       * 나쁘다 — 진행자는 그게 지금 이 사람의 값이라고 읽는다. 실제로 Polar
+       * Verity Sense를 붙였을 때 HRV가 54에 멈춰 있었는데, 그 54는 교체 전
+       * 시뮬레이터가 남기고 간 값이었다.
+       */
+      this.metrics.rmssd = null;
+      this.lastRrT = null;
     }
     if (s.gsr !== undefined) {
       r.pushGsr(s.t, s.gsr);

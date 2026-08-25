@@ -26,6 +26,12 @@ const HEART_RATE_MEASUREMENT = 0x2a37;
 /** RR 간격은 1/1024초 단위로 온다 */
 const RR_UNIT_MS = 1000 / 1024;
 
+/**
+ * 이만큼 박동을 받고도 RR이 하나도 없으면 "이 기기는 RR을 안 준다"고 판정한다.
+ * 대략 10초치다 — 착용 직후 불안정 구간을 넘기기에 충분하다.
+ */
+const RR_VERDICT_AFTER_BEATS = 10;
+
 export interface HeartRateReading {
   hr: number;
   rr: number[];
@@ -67,6 +73,9 @@ export class BleHeartRateSource extends BaseSource<BioSample> {
 
   private device: BluetoothDevice | null = null;
   private characteristic: BluetoothRemoteGATTCharacteristic | null = null;
+  /** RR을 한 번이라도 받았는가 — 기기가 HRV를 줄 수 있는지의 판정 */
+  private sawRr = false;
+  private beats = 0;
   private onValue = (e: Event) => {
     const target = e.target as BluetoothRemoteGATTCharacteristic;
     const value = target.value;
@@ -78,7 +87,27 @@ export class BleHeartRateSource extends BaseSource<BioSample> {
         this._quality = 'degraded';
         return;
       }
-      this._quality = 'ok';
+      /*
+       * RR을 실제로 주는 기기인지 여기서 판정한다.
+       *
+       * 표준 HR 서비스는 RR을 선택 필드로 두기 때문에, HR만 보내는 기기도 규격상
+       * 정상이다. 그런데 RR이 없으면 HRV(RMSSD)를 계산할 수 없고, 화면에는 그냥
+       * 빈칸이 뜬다 — 그게 "이 사람은 HRV가 낮다"인지 "이 기기는 HRV를 못 준다"인지
+       * 구분이 안 된다. 그래서 기기 탓임을 명시한다.
+       *
+       * 판정을 몇 박동 유예하는 이유: 착용 직후에는 박동 검출이 안정되지 않아
+       * RR이 빠진 패킷이 섞여 온다. 첫 패킷만 보고 단정하면 오진한다.
+       */
+      this.beats++;
+      if (rr.length) this.sawRr = true;
+
+      if (this.sawRr || this.beats <= RR_VERDICT_AFTER_BEATS) {
+        this._quality = 'ok';
+        this._error = undefined;
+      } else {
+        this._quality = 'degraded';
+        this._error = 'RR 미수신 — 이 기기로는 HRV를 계산할 수 없습니다';
+      }
       this.push({ t: this.clock.now(), hr, rr: rr.length ? rr : undefined });
     } catch {
       this._quality = 'degraded';

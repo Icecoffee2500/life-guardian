@@ -175,3 +175,46 @@ describe('실효 샘플레이트', () => {
     expect(hz!).toBeLessThan(90);
   });
 });
+
+describe('교체·결측 시 지표가 남지 않는다', () => {
+  /**
+   * 실기기 모드는 시뮬레이터를 먼저 붙였다가 교체한다. 교체 후에도 이전 값이
+   * 남아 있으면 시뮬레이터가 만든 수치가 실측인 척한다.
+   * Polar Verity Sense를 붙였을 때 HRV가 54에 멈춰 있던 것이 정확히 이것이었다.
+   */
+  it('소스를 교체하면 이전 소스의 지표를 물려주지 않는다', () => {
+    const hub = new SensorHub(new SessionRecorder(), new ExperienceBus());
+    const sim = new FeedSource();
+    hub.attachBio(sim);
+
+    // 시뮬레이터가 HR과 RR을 남긴다
+    for (let i = 0; i < 12; i++) sim.feed({ t: i * 1000, hr: 70, rr: [850 + (i % 3) * 40] });
+    expect(hub.current().hr).not.toBeNull();
+    expect(hub.current().rmssd).not.toBeNull();
+
+    // 실기기로 교체 — 아직 아무것도 안 보냈다
+    const live = new FeedSource();
+    hub.replaceBio('band', live);
+    expect(hub.current().hr).toBeNull();
+    expect(hub.current().rmssd).toBeNull();
+  });
+
+  it('RR 없이 HR만 오래 오면 HRV는 지워진다 — 멈춘 숫자는 없는 것보다 나쁘다', () => {
+    const hub = new SensorHub(new SessionRecorder(), new ExperienceBus());
+    const src = new FeedSource();
+    hub.attachBio(src);
+
+    for (let i = 0; i < 12; i++) src.feed({ t: i * 1000, hr: 70, rr: [850 + (i % 3) * 40] });
+    const withRr = hub.current().rmssd;
+    expect(withRr).not.toBeNull();
+
+    // RR 없이 HR만 계속 (광학 밴드가 RR을 안 주는 경우)
+    src.feed({ t: 12000, hr: 71 });
+    expect(hub.current().rmssd).toBe(withRr); // 아직 유예 안에 있다
+
+    src.feed({ t: 30000, hr: 71 }); // 10초를 훌쩍 넘김
+    expect(hub.current().rmssd).toBeNull();
+    // HR은 계속 살아 있어야 한다 — 지우는 건 HRV뿐이다
+    expect(hub.current().hr).toBe(71);
+  });
+});
