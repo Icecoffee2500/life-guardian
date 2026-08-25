@@ -211,9 +211,13 @@ export default function ReceiptSheet({ record }: { record: SessionRecord }) {
           <p className="mt-1.5 text-[8px] leading-[1.5] opacity-55">
             음성 원본은 저장하지 않습니다. QR로 언제든 이 결과를 다시 볼 수 있습니다.
           </p>
-          {record.fallback && (
-            <p className="mt-1 text-[8px] opacity-50">규칙 기반 해석으로 작성되었습니다.</p>
-          )}
+          {/*
+            해석이 규칙 기반이었는지는 영수증에 찍지 않는다.
+            체험자에게는 아무 의미도 없는 내부 사정이고, 받아 든 결과를 괜히
+            덜 믿게 만든다. 그 사실이 필요한 사람은 진행자뿐이고, 진행자 화면의
+            서버 진단 패널이 이미 더 정확하게 알려준다 (키 유무·호출 실패 구분).
+            record.fallback 자체는 세션 기록에 그대로 남는다.
+          */}
         </div>
       </footer>
 

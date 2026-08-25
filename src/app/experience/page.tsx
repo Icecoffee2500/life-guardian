@@ -157,7 +157,8 @@ export default function ExperiencePage() {
 
       {scene !== 'S0' && (
         <div className="pointer-events-none absolute inset-x-0 bottom-0 z-30 flex flex-wrap items-end justify-between gap-x-6 gap-y-3 px-6 pb-6 sm:px-10">
-          <VitalsReadout />
+          {/* 참가자 화면에서만 연출용 HRV를 허용한다 (VitalsReadout 주석 참고) */}
+          <VitalsReadout cosmeticHrv />
           <div className="flex items-center gap-4">
             {gazeLive && gazeScene && <GazeCursorToggle />}
             {/* 소리를 재우는 씬에서는 스위치도 숨긴다 — '켜짐'인데 조용하면 고장으로 읽힌다 */}

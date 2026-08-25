@@ -46,11 +46,11 @@ export interface DialogueTurn {
   topic: string;
   /** 낭독 종료 시각(ms) — 응답 지연 계산의 기준 */
   readEndT: number;
-  /** 첫 발화 감지 시각(ms). 무응답이면 null */
+  /** 첫 입력(타이핑) 감지 시각(ms). 무응답이면 null */
   speechStartT: number | null;
   /** 응답 종료 시각(ms) */
   endT: number;
-  /** STT 결과 텍스트. 음성 원본은 저장하지 않는다 (윤리 가드레일) */
+  /** 참가자가 직접 입력한 응답 텍스트 */
   transcript: string;
   /** 무응답 표기 */
   noResponse: boolean;

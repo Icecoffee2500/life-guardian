@@ -11,15 +11,7 @@ import { getPersona } from '@/lib/sensors/personas';
 import { sessionRecorder } from '@/lib/session/recorder';
 import { dialogueTimingFor, questionsFor } from '@/lib/session/scenes';
 import { useSession } from '@/lib/session/store';
-import {
-  cancelSpeech,
-  recognitionErrorMessage,
-  speak,
-  speechCapabilities,
-  startRecognition,
-} from '@/lib/speech';
-import { openMicrophone, type MicHandle } from '@/lib/audio-level';
-import { startWhisper, type WhisperHandle } from '@/lib/whisper';
+import { cancelSpeech, speak } from '@/lib/speech';
 
 type Phase = 'read' | 'answer' | 'recover';
 
@@ -32,20 +24,13 @@ const ACK = '기록했습니다';
 /**
  * S6 — 대화 세션.
  *
- * 이전 버전의 가장 큰 실패: **음성 인식이 되는 척했다.**
- * 브라우저에 인식 객체가 있으면 "편하게 말씀해 주세요"를 띄웠는데,
- * 마이크 권한을 요청하지도 않았고 소리가 들어오는지 확인하지도 않았다.
+ * 문항은 음성 AI(TTS)가 낭독하고, 응답은 참가자가 **직접 입력**한다.
+ * 이전에는 음성 인식(STT)도 시도했지만, 되는 척하기가 너무 쉬웠다 — 인식 객체가
+ * 존재한다는 것과 실제로 마이크가 열려 소리가 잡힌다는 것은 전혀 다른 이야기였고,
  * 참가자는 말했는데 아무것도 안 적히는 화면을 보고 있어야 했다.
  *
- * 지금은 네 가지를 지킨다:
- *  1. 마이크를 **명시적으로 연다**. 권한 프롬프트가 제때 뜬다.
- *  2. 인식기가 마이크를 여는 순간(onAudioStart)을 받아 '듣는 중'을 표시한다.
- *  3. 실패하면 **이유 코드를 화면에 그대로 보여준다.** 부스에서 추측하지 않기 위해서다.
- *  4. 타이핑 입력을 폴백이 아니라 **항상 같이** 둔다. 어느 쪽으로든 답할 수 있다.
- *
- * 마이크 장치는 인식기에게 넘긴다. 레벨 미터용 스트림을 붙잡고 있으면
- * 브라우저 인식이 장치를 못 여는 환경이 있어서, 인식이 되는 브라우저에서는
- * 권한만 받고 스트림을 즉시 놓아준다.
+ * 지금은 입력 수단을 하나로 좁힌다: **타이핑.** 어느 브라우저·어느 환경에서도
+ * 똑같이 동작하고, 참가자가 무엇이 기록되는지 눈으로 바로 확인할 수 있다.
  */
 export default function S6Dialogue({
   onDone,
@@ -66,35 +51,10 @@ export default function S6Dialogue({
   const [phase, setPhase] = useState<Phase>('read');
   const [transcript, setTranscript] = useState('');
   const [answerProgress, setAnswerProgress] = useState(0);
-  const [caps] = useState(() => speechCapabilities());
 
-  /** 참가자가 음성 입력을 켰는가 — 인식기의 수명을 결정한다 */
-  const [voiceOn, setVoiceOn] = useState(false);
-  /** 레벨 미터용 스트림이 살아 있는가. 인식을 지원하지 않는 브라우저에서만 켠다. */
-  const [meterOn, setMeterOn] = useState(false);
-  /** 마이크 입력 레벨 0~1 */
-  const [level, setLevel] = useState(0);
-  const [micNote, setMicNote] = useState<string | null>(null);
-  /** 인식기가 마이크를 실제로 열었는가 — 예전의 레벨 미터를 대신하는 증거 */
-  const [listening, setListening] = useState(false);
-  /**
-   * 어느 인식기를 쓰는가.
-   * - web     : 브라우저 내장. 즉시 시작되지만 오디오를 구글 서버로 보낸다.
-   * - whisper : 기기 안에서 도는 모델. 첫 실행에 내려받기가 필요한 대신 어디서든 된다.
-   *
-   * web으로 시작해서 막히면(network 등) whisper로 넘어가고, 한 번 넘어가면
-   * 그 세션 동안 되돌아가지 않는다. 문항마다 같은 실패를 반복할 이유가 없다.
-   */
-  const [engine, setEngine] = useState<'web' | 'whisper'>(() =>
-    speechCapabilities().stt ? 'web' : 'whisper',
-  );
-  /** whisper 모델 내려받기 진행률 (0~100). null이면 준비됨 */
-  const [modelPct, setModelPct] = useState<number | null>(null);
-
-  const micRef = useRef<MicHandle | null>(null);
   const transcriptRef = useRef('');
   const speechStartRef = useRef<number | null>(null);
-  /** 지금 진행 중인 문항 번호 — 인식 콜백이 이벤트에 붙인다 */
+  /** 지금 진행 중인 문항 번호 — 이벤트에 붙인다 */
   const curQRef = useRef<number | null>(null);
   const skipRef = useRef<(() => void) | null>(null);
   const pausedRef = useRef(paused);
@@ -112,59 +72,7 @@ export default function S6Dialogue({
     onProgressRef.current = onProgress;
   }, [onProgress]);
 
-  // ── 마이크 열기 ─────────────────────────────────────────────
-  /*
-    getUserMedia는 **권한을 받기 위해서만** 연다. 받자마자 장치를 놓아준다.
-
-    레벨 미터를 위해 스트림을 붙잡고 있었는데, 그 스트림이 마이크를 쥔 채로는
-    브라우저 음성 인식이 장치를 열지 못하는 환경이 있다(audio-capture / network).
-    미터는 "듣고 있다"를 보여주는 장치일 뿐이고, 인식은 이 씬의 기능 자체다.
-    둘이 부딪히면 미터를 포기한다 — 대신 인식기가 마이크를 여는 순간(onAudioStart)을
-    받아서 같은 역할을 시킨다.
-
-    인식을 아예 지원하지 않는 브라우저에서만 스트림을 붙잡고 미터를 돌린다.
-  */
-  const enableMic = useCallback(async () => {
-    setMicNote(null);
-    const mic = await openMicrophone();
-    if (!mic) {
-      setMicNote('마이크 권한을 받지 못했습니다. 아래에 직접 입력해 주세요.');
-    } else if (caps.stt) {
-      mic.stop();
-    } else {
-      micRef.current = mic;
-      setMeterOn(true);
-    }
-    setVoiceOn(true);
-  }, [caps.stt]);
-
-  // 레벨 미터 — 스트림이 살아 있는 동안만 돈다
-  useEffect(() => {
-    if (!meterOn) return;
-    let raf = 0;
-    let last = 0;
-    const tick = () => {
-      const v = micRef.current?.level() ?? 0;
-      // 막대가 60fps로 리렌더될 이유는 없다. 눈에 보일 만큼만.
-      if (Math.abs(v - last) > 0.02) {
-        last = v;
-        setLevel(v);
-      }
-      raf = requestAnimationFrame(tick);
-    };
-    raf = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf);
-  }, [meterOn]);
-
-  useEffect(
-    () => () => {
-      micRef.current?.stop();
-      micRef.current = null;
-    },
-    [],
-  );
-
-  /** 첫 발화 시각 — 응답 지연의 종료점. 한 문항에서 한 번만 찍는다. */
+  /** 첫 입력 시각 — 응답 지연의 종료점. 한 문항에서 한 번만 찍는다. */
   const markSpeech = useCallback(() => {
     if (speechStartRef.current !== null) return;
     speechStartRef.current = sessionClock.now();
@@ -237,9 +145,6 @@ export default function S6Dialogue({
         const readEndT = sessionClock.now();
 
         // ── 응답 구간 ──
-        // 음성 인식은 여기서 켜지 않는다. phase가 'answer'로 바뀌는 것을 보고
-        // 아래의 전용 이펙트가 붙인다 — 참가자가 답하는 도중에 마이크를 켜도
-        // 그 즉시 인식이 시작되어야 하기 때문이다.
         setPhase('answer');
 
         let autoTimer: ReturnType<typeof setTimeout> | null = null;
@@ -313,91 +218,6 @@ export default function S6Dialogue({
   const answering = phase === 'answer';
   const auto = signalMode === 'auto';
 
-  // ── 음성 인식 ───────────────────────────────────────────────
-  /*
-    인식기의 수명을 **응답 구간 × 음성 켜짐**에 직접 묶는다.
-
-    예전에는 문항 시퀀스 안에서 응답 구간에 진입하는 그 순간에만 인식을 걸었고,
-    조건이 `micRef.current?.live()`였다. 그런데 마이크를 켜는 버튼은 바로 그
-    응답 구간에 들어가야 화면에 나타났다. 즉 첫 문항에서는 검사 시점에 마이크가
-    항상 닫혀 있어서 **인식이 아예 시작되지 않았다.**
-    참가자에게는 레벨 미터만 움직이고 글자는 하나도 안 적히는 화면이 보였다.
-
-    이제는 이펙트가 상태 변화를 보고 붙였다 뗀다. 답하는 도중에 마이크를 켜도
-    그 즉시 인식이 시작된다.
-  */
-  useEffect(() => {
-    if (auto || !answering || !voiceOn) return;
-
-    // listening은 정리(cleanup)에서만 내린다. 이펙트 본문에서 동기 setState를 하면
-    // 렌더가 연쇄로 다시 돈다 (react-hooks/set-state-in-effect).
-    const write = (t: string) => {
-      if (t) markSpeech();
-      transcriptRef.current = t;
-      setTranscript(t);
-    };
-
-    // ── 1) 브라우저 내장 인식 ──
-    if (engine === 'web' && caps.stt) {
-      const stop = startRecognition({
-        onAudioStart: () => setListening(true),
-        onSpeechStart: markSpeech,
-        onPartial: write,
-        onFinal: (t) => {
-          if (t) transcriptRef.current = t;
-        },
-        onError: (reason) => {
-          setListening(false);
-          /*
-            여기가 이번 수정의 핵심이다.
-            network는 "브라우저 인식이 구글 서버에 닿지 못했다"는 뜻이고, 재시도해도
-            같은 결과다. 예전에는 이 지점에서 참가자에게 "직접 입력하세요"라고 떠넘겼다.
-            이제는 기기 안에서 도는 인식기로 갈아탄다 — 외부 서버가 필요 없으니
-            사내망이든 VPN이든 상관없다.
-          */
-          setEngine('whisper');
-          setMicNote(
-            `${recognitionErrorMessage(reason)} (${reason}) 기기 안에서 처리하는 인식기로 전환합니다.`,
-          );
-        },
-      });
-
-      if (!stop) setEngine('whisper');
-      return () => {
-        stop?.();
-        setListening(false);
-      };
-    }
-
-    // ── 2) 기기 안에서 도는 Whisper ──
-    let handle: WhisperHandle | null = null;
-    let dropped = false;
-    void startWhisper({
-      onProgress: (pct) => setModelPct(Math.round(pct)),
-      onReady: () => {
-        setModelPct(null);
-        setListening(true);
-        setMicNote(null);
-      },
-      onSpeechStart: markSpeech,
-      onPartial: write,
-      onError: (message) => {
-        setListening(false);
-        setMicNote(`음성 인식을 시작하지 못했습니다 (${message}). 아래에 직접 입력해 주세요.`);
-      },
-    }).then((h) => {
-      if (dropped) h?.stop();
-      else handle = h;
-    });
-
-    return () => {
-      dropped = true;
-      handle?.stop();
-      setListening(false);
-    };
-    // idx: 문항이 바뀌면 인식기를 새로 만들어 누적 텍스트를 비운다
-  }, [answering, auto, caps.stt, engine, idx, markSpeech, voiceOn]);
-
   const onType = (v: string) => {
     transcriptRef.current = v;
     setTranscript(v);
@@ -432,78 +252,6 @@ export default function S6Dialogue({
 
         {/* 응답 */}
         <div className="flex min-h-[13rem] shrink-0 flex-col gap-4">
-          {/*
-            마이크 조작은 응답 구간 밖에서도 보여야 한다.
-            예전에는 이 버튼이 응답 구간에만 나타나서, 참가자가 버튼을 볼 수 있게 될 때는
-            이미 인식을 걸지 말지 판단이 끝난 뒤였다 — 그래서 첫 문항은 늘 인식이 죽었다.
-            문항을 읽어주는 동안 미리 켜 두면 답을 시작하는 순간부터 받아 적힌다.
-          */}
-          {!auto && caps.stt && !voiceOn && (
-            <button
-              onClick={() => void enableMic()}
-              className="flex items-center justify-center gap-3 rounded-[4px] border border-line-strong bg-surface-raised px-5 py-3.5 text-ink transition-colors hover:bg-surface-sunken"
-            >
-              <span
-                className="h-2.5 w-2.5 rounded-full"
-                style={{ background: 'var(--color-line-strong)' }}
-              />
-              <span className="t-body-strong">마이크로 답하기</span>
-            </button>
-          )}
-
-          {!auto && voiceOn && (
-            <div className="rounded-[4px] border border-line bg-surface-raised px-4 py-3">
-              <div className="flex items-center gap-3">
-                <span
-                  className="h-2.5 w-2.5 shrink-0 rounded-full"
-                  style={{
-                    background:
-                      answering && (listening || meterOn)
-                        ? 'var(--color-hr)'
-                        : 'var(--color-line-strong)',
-                  }}
-                />
-                <span className="t-label shrink-0">
-                  {!answering
-                    ? '대기'
-                    : modelPct !== null
-                      ? `인식기 준비 ${modelPct}%`
-                      : listening || meterOn
-                        ? '듣는 중'
-                        : '마이크 여는 중'}
-                </span>
-                {meterOn ? (
-                  /* 이 막대가 움직이면 소리가 실제로 들어오고 있다는 뜻이다 */
-                  <div className="h-2 flex-1 overflow-hidden rounded-[1px] bg-surface-sunken">
-                    <div
-                      className="h-full transition-[width] duration-75"
-                      style={{
-                        width: `${Math.round(level * 100)}%`,
-                        background: 'var(--color-hr)',
-                      }}
-                    />
-                  </div>
-                ) : modelPct !== null ? (
-                  /* 모델 내려받기 — 처음 한 번만이고, 이후에는 캐시에서 바로 뜬다 */
-                  <div className="h-2 flex-1 overflow-hidden rounded-[1px] bg-surface-sunken">
-                    <div
-                      className="h-full transition-[width] duration-200"
-                      style={{ width: `${modelPct}%`, background: 'var(--color-brand)' }}
-                    />
-                  </div>
-                ) : (
-                  <span className="t-label flex-1">
-                    {answering && listening
-                      ? engine === 'whisper'
-                        ? '말씀하시면 기기 안에서 받아 적습니다'
-                        : '말씀하시면 아래에 적힙니다'
-                      : ''}
-                  </span>
-                )}
-              </div>
-            </div>
-          )}
-
           <AnimatePresence>
             {answering && (
               <motion.div
@@ -519,25 +267,14 @@ export default function S6Dialogue({
                     {transcript || <span className="text-ink-3">가상 참가자가 답하는 중입니다</span>}
                   </p>
                 ) : (
-                  <>
-                    {/*
-                      타이핑 — 폴백이 아니라 동등한 입력 수단.
-                      인식 결과도 이 칸에 바로 쓰인다. 받아 적힌 걸 다른 곳에 보여주고
-                      고칠 곳을 따로 두면, 말한 게 반영됐는지 눈으로 확인하기 어렵다.
-                    */}
-                    <textarea
-                      ref={inputRef}
-                      value={transcript}
-                      onChange={(e) => onType(e.target.value)}
-                      rows={3}
-                      placeholder={
-                        voiceOn ? '말씀하시면 여기에 적힙니다. 고쳐 쓸 수도 있습니다.' : '여기에 답을 적어주세요'
-                      }
-                      className="t-body w-full resize-none rounded-[4px] border border-line-strong bg-surface-raised px-4 py-3 text-ink placeholder:text-ink-3 focus:border-ink focus:outline-none"
-                    />
-
-                    {micNote && <p className="t-label text-warn">{micNote}</p>}
-                  </>
+                  <textarea
+                    ref={inputRef}
+                    value={transcript}
+                    onChange={(e) => onType(e.target.value)}
+                    rows={3}
+                    placeholder="여기에 답을 적어주세요"
+                    className="t-body w-full resize-none rounded-[4px] border border-line-strong bg-surface-raised px-4 py-3 text-ink placeholder:text-ink-3 focus:border-ink focus:outline-none"
+                  />
                 )}
               </motion.div>
             )}

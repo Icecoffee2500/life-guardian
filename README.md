@@ -36,7 +36,7 @@ Supabase를 쓸 거면 [`supabase/schema.sql`](./supabase/schema.sql)을 SQL Edi
 
 ```
 Content-Security-Policy: frame-ancestors *
-Permissions-Policy: camera=*, microphone=*, autoplay=*
+Permissions-Policy: camera=*, autoplay=*
 ```
 
 `X-Frame-Options`는 일부러 넣지 않았다. 이 헤더에는 "모두 허용" 값이 없고
@@ -46,28 +46,24 @@ Permissions-Policy: camera=*, microphone=*, autoplay=*
 
 ```html
 <iframe src="https://<배포주소>/experience"
-        allow="camera; microphone; autoplay"
+        allow="camera; autoplay"
         style="width:100%;aspect-ratio:16/9;border:0"></iframe>
 ```
 
-`allow` 없이도 화면은 뜨지만 **웹캠 시선 추적과 음성 인식이 조용히 죽는다.**
-교차 출처 iframe에서는 부모가 위임하지 않으면 자식이 카메라·마이크를 못 연다.
+`allow` 없이도 화면은 뜨지만 **웹캠 시선 추적이 조용히 죽는다.**
+교차 출처 iframe에서는 부모가 위임하지 않으면 자식이 카메라를 못 연다.
 (실측: `allow` 있음 → `camera: true` / 없음 → `camera: false`)
 
 임베드에서 안 되는 것:
 
 | 기능 | 상태 | 이유 |
 |------|------|------|
-| 웹캠 시선 · 음성 인식 | `allow` 있으면 됨 | Permissions Policy 위임 |
+| 웹캠 시선 추적 | `allow` 있으면 됨 | Permissions Policy 위임 |
 | 심박 소리 | `allow="autoplay"` 권장 | 자동재생 정책 |
 | **영수증 저장·조회** | **깨질 수 있음** | 서드파티 스토리지 분할(Safari는 거의 확실) |
 | 실기기(Web Bluetooth·Serial) | 대개 막힘 | 교차 출처 iframe에서 차단 |
 
 영수증까지 보여줘야 하면 그 부분은 새 탭으로 여는 편이 안전하다.
-
-> 참고: 교차 출처 격리(COOP/COEP)를 켜면 `SharedArrayBuffer`가 열려 기기 내
-> 음성 인식이 여러 스레드로 빨라지지만, **그 순간 임베드가 막힌다.**
-> 임베드를 택했으므로 켜지 않는다. 인식은 단일 스레드 WASM으로 돈다.
 
 ## 화면
 
@@ -133,8 +129,8 @@ Permissions-Policy: camera=*, microphone=*, autoplay=*
 - 오디오 컨텍스트는 S1의 **측정 시작** 클릭에서 만든다. 브라우저는 사용자 제스처 없이
   만든 컨텍스트를 suspended로 붙잡아 둔다.
 - 간격은 그 순간의 실측 HR에서만 온다. 신호가 없으면 소리도 나지 않는다.
-- **S6(대화)와 S8(결과)에서는 자동으로 멈춘다.** 마이크가 열려 있는 동안 스피커에서
-  심박이 나오면 STT가 그걸 같이 받아 적고 응답 지연 측정까지 오염된다.
+- **S6(대화)와 S8(결과)에서는 자동으로 멈춘다.** S6은 질문을 낭독하는 음성(TTS)에
+  집중해야 하고, S8은 결과를 차분히 읽어야 하는 구간이라 심박음이 방해가 된다.
 - 화면 우하단 스위치로 언제든 끈다. S1에서 미리 끄고 시작할 수도 있다.
 
 ## 신호 모드
@@ -353,7 +349,7 @@ node scripts/import-stimuli.mjs images
 코드로 강제하는 것들 (부록 B·C):
 
 - 진단명·단정형 표현 금지 — 시스템 프롬프트 규칙 + 폴백 문장 검사 테스트
-- 음성 원본 미저장 — STT 텍스트만 남기고 오디오는 어디에도 쓰지 않는다
+- 응답은 참가자가 직접 입력한 텍스트만 저장한다 — 음성을 녹음·전송하지 않는다
 - 언제든 건너뛰기 — 대화 씬에 상시 노출
 - 결측·저품질 축은 언급하지 않는다 — `quality: "missing"`으로 명시해 넘기고, 모델은 건너뛴다
 - `mismatch`가 0.5 미만이면 `hidden_finding`을 `null`로 둔다 — 없는 불일치를 만들지 않는다

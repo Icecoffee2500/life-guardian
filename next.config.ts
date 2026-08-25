@@ -23,15 +23,18 @@ const EMBED_HEADERS = [
   },
   {
     /*
-      임베드된 상태에서도 카메라·마이크·오디오를 쓸 수 있게 한다.
+      임베드된 상태에서도 카메라·오디오를 쓸 수 있게 한다.
       기본 허용 범위는 `self`뿐이라, 교차 출처 iframe 안에서는 부모가 allow를
       붙여도 이쪽에서 막혀 버린다.
 
       부모 쪽에도 아래가 필요하다 — 이건 우리가 어쩔 수 없는 부분이라 README에 적어 둔다:
-        <iframe allow="camera; microphone; autoplay" …>
+        <iframe allow="camera; autoplay" …>
+
+      마이크는 뺐다. 음성 인식을 걷어낸 뒤로 이 앱은 마이크를 한 번도 열지 않는다.
+      쓰지 않는 권한을 열어 두면 임베드하는 쪽에 불필요한 신뢰를 요구하게 된다.
     */
     key: 'Permissions-Policy',
-    value: 'camera=*, microphone=*, autoplay=*',
+    value: 'camera=*, autoplay=*',
   },
 ];
 
