@@ -295,11 +295,49 @@ body {
   }
 }
 
-/* ── 영수증(인쇄) ────────────────────────────────── */
+/* ── 영수증(인쇄) ──────────────────────────────────
+   80mm 감열 프린터로 실제 출력해 보고 고친 규칙들이다.
+
+   감열 인쇄에는 **중간 계조가 없다.** 헤드가 점을 지지거나 안 지지거나 둘
+   중 하나라서, 화면에서 opacity 60%로 얌전히 뒤로 물러나 있던 회색 글씨는
+   종이에서 성긴 얼룩이 되어 아예 읽히지 않는다. 첫 출력물에서 구획 제목,
+   추천 분류명, 추천 이유, 하단 고지문이 통째로 사라진 이유가 이것이다.
+
+   그래서 영수증 안에서는 회색을 금지한다. 위계는 크기·굵기·선으로만 만든다. */
 .receipt {
   color-scheme: light;
   -webkit-font-smoothing: auto;
-  letter-spacing: -0.005em;
+  /* 자간을 좁히면 감열지에서 획끼리 붙는다. 오히려 살짝 벌린다. */
+  letter-spacing: 0.005em;
+  /*
+    감열 헤드는 가는 획을 통째로 버린다. 본문 최소 굵기를 500으로 올려
+    한글 가로획(ㅡ, ㅣ의 곁줄기)이 끊기지 않게 한다.
+  */
+  font-weight: 500;
+  /* 브라우저가 인쇄에서 임의로 색을 옅게 바꾸지 못하게 한다 */
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+
+/* 영수증 안의 모든 글자는 순수한 검정이다 — 회색 계조는 종이에서 얼룩이 된다 */
+.receipt,
+.receipt * {
+  color: #000;
+}
+
+/* 구분선. 회색 실선 대신 순수 검정 실선/점선으로 긋는다. */
+.receipt-rule {
+  border-top: 1px solid #000;
+}
+.receipt-rule-dash {
+  /*
+    배경(그라데이션)으로 점선을 그리면 안 된다.
+    크롬 인쇄 대화상자의 "배경 그래픽"은 **기본이 꺼짐**이라, 부스에서 진행자가
+    체크를 안 하면 이 선들이 통째로 사라진 종이가 나온다. 테두리는 그 설정과
+    무관하게 항상 인쇄된다.
+  */
+  height: 0;
+  border-top: 1px dashed #000;
 }
 
 @media print {
@@ -319,6 +357,16 @@ body {
     width: 80mm !important;
     margin: 0 !important;
     box-shadow: none !important;
-    page-break-inside: avoid;
+    border: 0 !important;
+  }
+  /*
+    영수증은 한 장이 아니라 **끊기지 않는 한 줄기**다. page-break-inside:avoid를
+    걸면 내용이 길어질 때 브라우저가 통째로 다음 페이지로 미뤄 앞쪽에 빈 종이가
+    한 뼘 나온다. 감열 롤에서는 그게 곧 낭비다. 대신 단락이 잘리지 않게만 한다.
+  */
+  .receipt section,
+  .receipt li,
+  .receipt footer {
+    break-inside: avoid;
   }
 }

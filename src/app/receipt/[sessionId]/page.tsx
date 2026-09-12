@@ -54,7 +54,7 @@ export default function ReceiptPage({ params }: { params: Promise<{ sessionId: s
         <>
           {/* 밝은 바탕에서는 그림자를 두껍게 쌓지 않는다. 종이가 아니라
               얇은 테두리와 낮은 그림자만으로 면이 떠 있음을 알려준다. */}
-          <div className="print:shadow-none mx-auto w-fit border border-line bg-surface shadow-[0_1px_3px_rgba(0,0,0,0.08)]">
+          <div className="mx-auto w-fit border border-line bg-surface shadow-[0_1px_3px_rgba(0,0,0,0.08)] print:border-0 print:shadow-none">
             <ReceiptSheet record={state.record} />
           </div>
 
